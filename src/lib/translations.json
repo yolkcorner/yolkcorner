@@ -1,0 +1,453 @@
+{
+  "th": {
+    "nav": {
+      "home": "หน้าหลัก",
+      "about": "เกี่ยวกับเรา",
+      "portfolio": "ผลงาน",
+      "story": "บล็อก",
+      "news": "ข่าวสารและโปรโมชั่น",
+      "download": "ดาวน์โหลด",
+      "contact": "ติดต่อเรา"
+    },
+    "about": {
+      "title": "เกี่ยวกับเรา",
+      "subtitle": "ทีมงานและเรื่องราวของเรา",
+      "memberLabel": "สมาชิกทีม"
+    },
+    "hero": {
+      "title": "Yolk Corner PRODUCTION",
+      "subtitle": "สร้างสรรค์ผลงานด้วยความเป็นมืออาชีพ",
+      "cta": "ดูผลงานของเรา"
+    },
+    "portfolio": {
+      "title": "ผลงาน",
+      "photo": "ภาพนิ่ง",
+      "video": "วิดีโอ",
+      "suspenseFallback": "กำลังโหลด..."
+    },
+    "adminLogo": {
+      "title": "โลโก้เว็บไซต์",
+      "description": "อัปโหลดโลโก้ใหม่ (แนะนำสัดส่วน 1:1 เช่น {width}×{height} px หรือมากกว่า) พร้อม preview ก่อนบันทึก และบันทึกทับไฟล์เดิม",
+      "sizeHint": "ขนาดแสดงผลโลโก้ปัจจุบันประมาณ {width} × {height} px (สี่เหลี่ยมจัตุรัส 1:1)\nแนะนำให้อัปโหลดอย่างน้อย {width2x} × {height2x} px เพื่อความคมชัด และควรเป็นไฟล์ PNG พื้นหลังโปร่งใส",
+      "preview": "ภาพตัวอย่างโลโก้",
+      "previewAlt": "ภาพตัวอย่างโลโก้",
+      "siteNameLabel": "ชื่อเว็บไซต์ (ใช้บนแท็บ Browser)",
+      "siteNamePlaceholder": "เช่น Yolk Corner",
+      "uploadLabel": "อัปโหลดไฟล์โลโก้",
+      "saving": "กำลังบันทึกข้อมูลแบรนด์...",
+      "savingButton": "กำลังบันทึก...",
+      "saveButton": "บันทึก",
+      "saved": "บันทึกข้อมูลแบรนด์เรียบร้อยแล้ว",
+      "saveFailed": "อัปโหลดหรือบันทึกโลโก้ไม่สำเร็จ",
+      "loadFailed": "โหลดข้อมูลโลโก้ไม่สำเร็จ",
+      "cancelled": "ยกเลิกการเปลี่ยนโลโก้แล้ว",
+      "noChanges": "ยังไม่มีการเปลี่ยนแปลงให้บันทึก",
+      "supportedFiles": "รองรับไฟล์: PNG, JPG, WEBP, AVIF (ไม่เกิน 12MB)"
+    },
+    "navbar": {
+      "logoHomeAria": "กลับไปหน้าหลัก",
+      "logoAlt": "โลโก้เว็บไซต์",
+      "languageEn": "EN",
+      "languageTh": "TH"
+    },
+    "browserTitle": {
+      "home": "หน้าหลัก",
+      "about": "เกี่ยวกับเรา",
+      "gallery": "แกลเลอรี",
+      "portfolio": "ผลงาน",
+      "portfolioDetail": "รายละเอียดผลงาน",
+      "blog": "บล็อก",
+      "blogDetail": "รายละเอียดบล็อก",
+      "news": "ข่าวสารและโปรโมชั่น",
+      "newsDetail": "รายละเอียดข่าวสาร",
+      "download": "ดาวน์โหลดรูปภาพ",
+      "downloadGallery": "คลังภาพดาวน์โหลด",
+      "contact": "ติดต่อเรา",
+      "fallback": "หน้า"
+    },
+    "members": {
+      "role1": "ช่างภาพ / Photographer",
+      "role2": "ช่างวิดีโอ / Videographer",
+      "role3": "ครีเอทีฟ / Creative",
+      "role4": "ผู้จัดการ / Manager"
+    },
+    "all": "ทั้งหมด",
+    "portfolioCategories": {
+      "wedding": "งานแต่ง",
+      "ordination": "งานบวช",
+      "event": "อีเว้นต์",
+      "product": "ถ่ายสินค้า"
+    },
+    "downloadEvents": {
+      "event1": "งานแต่ง คุณ A & คุณ B",
+      "event2": "งานบวช คุณ C",
+      "event3": "อีเว้นต์ XYZ Corp",
+      "event4": "ถ่ายสินค้า Brand D"
+    },
+    "common": {
+      "loading": "กำลังโหลด...",
+      "loadingData": "กำลังโหลดข้อมูล...",
+      "loadMore": "กำลังโหลดรูปเพิ่ม...",
+      "scrollToLoadMore": "เลื่อนลงเพื่อโหลดเพิ่ม",
+      "noAlbums": "ยังไม่มีอัลบั้ม",
+      "noPhotos": "ไม่พบรูปภาพ",
+      "photosUnit": "รูปภาพ",
+      "albumUnit": "อัลบั้ม",
+      "viewPhotos": "ดูรูปภาพ",
+      "back": "ย้อนกลับ",
+      "previous": "ก่อนหน้า",
+      "next": "ถัดไป",
+      "download": "ดาวน์โหลด",
+      "close": "ปิด",
+      "cancel": "ยกเลิก",
+      "logout": "ออกจากระบบ",
+      "switchLanguage": "เปลี่ยนภาษา",
+      "menu": "เมนู",
+      "socialMedia": "โซเชียลมีเดีย",
+      "messageSent": "ส่งข้อความเรียบร้อย",
+      "eventGallery": "แกลเลอรีอีเวนต์"
+    },
+    "notFound": {
+      "title": "ไม่พบหน้าที่คุณต้องการ",
+      "returnHome": "กลับหน้าหลัก"
+    },
+    "adminLogin": {
+      "title": "เข้าสู่ระบบผู้ดูแล",
+      "email": "อีเมล",
+      "password": "รหัสผ่าน",
+      "login": "เข้าสู่ระบบ",
+      "loginFailed": "เข้าสู่ระบบไม่สำเร็จ"
+    },
+    "admin": {
+      "title": "Admin Dashboard",
+      "logout": "Logout",
+      "createAlbum": "Create New Album",
+      "albumName": "Album Name",
+      "coverImage": "Select Album Cover",
+      "create": "Create Album",
+      "uploading": "Uploading...",
+      "uploadImage": "Upload Album Image",
+      "chooseAlbum": "-- Select Album --",
+      "chooseImage": "Select Image",
+      "uploadImageButton": "Upload Image",
+      "allAlbums": "All Albums",
+      "delete": "Delete",
+      "confirmDelete": "Are you sure you want to delete this album?",
+      "photosLimit": "{count}/100 photos",
+      "needAlbumAndCover": "Please enter album name and select cover image",
+      "coverUploadFailed": "Failed to upload cover image",
+      "albumCreated": "Album created successfully",
+      "createAlbumFailed": "Failed to create album",
+      "unexpectedError": "Unexpected error",
+      "needAlbumAndImage": "Please select album and image",
+      "maxPhotosReached": "This album already has 100 photos",
+      "imageUploadFailed": "Failed to upload image",
+      "imageUploaded": "Image uploaded successfully",
+      "deleteSuccess": "Album deleted successfully",
+      "deleteFailed": "Failed to delete album",
+      "passwordMenu": "Download Password"
+    },
+    "floatingChat": {
+      "open": "เปิดช่องทางติดต่อ",
+      "close": "ปิดช่องทางติดต่อ"
+    },
+    "blogPage": {
+      "loadingTitle": "บล็อก",
+      "noPosts": "ยังไม่มีบล็อกในขณะนี้"
+    },
+    "blogDetail": {
+      "loading": "กำลังโหลด...",
+      "notFound": "ไม่พบบล็อกที่ต้องการ",
+      "back": "กลับไปหน้าบล็อก",
+      "galleryTitle": "รูปภาพภายในบล็อก",
+      "shareTitle": "แชร์บทความนี้",
+      "shareFacebook": "แชร์ไปยัง Facebook",
+      "recommended": "แนะนำ",
+      "copyLink": "คัดลอกลิงก์"
+    },
+    "newsPage": {
+      "loadingTitle": "ข่าวสารและโปรโมชั่น",
+      "noNews": "ยังไม่มีข่าวสารในขณะนี้"
+    },
+    "newsDetail": {
+      "loading": "กำลังโหลด...",
+      "notFound": "ไม่พบข่าวสารที่ต้องการ",
+      "back": "กลับหน้าข่าวสาร",
+      "contactCta": "ติดต่อเราเพื่อรับโปรโมชั่น"
+    },
+    "downloadDetail": {
+      "backToDownload": "กลับหน้า Download",
+      "iosHint": "iPhone: แนะนำใช้ปุ่ม \"บันทึกลง Photos\" เพื่อบันทึกรูปได้ง่ายขึ้น",
+      "dismiss": "ปิด",
+      "downloadFail": "ดาวน์โหลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "downloading": "กำลังดำเนินการ...",
+      "saveToPhotos": "บันทึกลง Photos",
+      "iosFallbackNotice": "บน iPhone หากไม่บันทึกอัตโนมัติ ให้กดค้างที่รูปแล้วเลือก \"บันทึกรูปภาพ\" หรือกด Share > Save Image"
+    },
+    "contact": {
+      "title": "ติดต่อเรา",
+      "phone": "เบอร์โทรศัพท์",
+      "email": "อีเมล",
+      "address": "ที่อยู่",
+      "name": "ชื่อ",
+      "message": "ข้อความ",
+      "send": "ส่ง",
+      "sendingButton": "กำลังส่ง...",
+      "emailSubjectPrefix": "[Website Contact]",
+      "anonymousContactName": "Contact",
+      "emailBodyNameLabel": "Name",
+      "emailBodyEmailLabel": "Contact Email",
+      "emailBodyMessageLabel": "Message",
+      "noTargetEmail": "ไม่มีการตั้งค่าอีเมลปลายทาง กรุณาติดต่อผู้ดูแลเว็บไซต์",
+      "sendingMessage": "กำลังส่งข้อความ...",
+      "sendFailed": "ส่งข้อความล้มเหลว กรุณาลองใหม่อีกครั้ง",
+      "systemSendFailed": "การส่งระบบล้มเหลว คุณสามารถใช้ปุ่มแอปจดหมายด้านล่างแทน",
+      "mailtoUnavailable": "ไม่มีการตั้งค่าอีเมลปลายทาง ดังนั้นจึงไม่สามารถเปิด mailto ได้",
+      "sendViaMailto": "ส่งผ่านแอป Email (mailto)",
+      "targetEmailLabel": "อีเมลปลายทาง"
+    },
+    "footer": {
+      "rights": "All rights reserved",
+      "adminLogin": "login for admin",
+      "copyrightPrefix": "© 2026 YOLK CORNER."
+    },
+    "social": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "tiktok": "TikTok",
+      "line": "Line",
+      "messenger": "Messenger"
+    },
+    "albumPasswordModal": {
+      "errorIncomplete": "กรุณากรอกให้ครบ 4 หลัก",
+      "closeAria": "ปิด",
+      "digitAria": "รหัสหลักที่ {n}",
+      "save": "บันทึก"
+    }
+  },
+  "en": {
+    "nav": {
+      "home": "Home",
+      "about": "About",
+      "portfolio": "Portfolio",
+      "story": "Blog",
+      "news": "News & Promotions",
+      "download": "Download",
+      "contact": "Contact"
+    },
+    "about": {
+      "title": "About Us",
+      "subtitle": "Our team and story",
+      "memberLabel": "Team Member"
+    },
+    "hero": {
+      "title": "Yolk Corner PRODUCTION",
+      "subtitle": "Creating professional content with passion",
+      "cta": "View Our Work"
+    },
+    "portfolio": {
+      "title": "Portfolio",
+      "photo": "Photo",
+      "video": "Video",
+      "suspenseFallback": "Loading..."
+    },
+    "adminLogo": {
+      "title": "Website Logo",
+      "description": "Upload a new logo (recommended 1:1 ratio, e.g. {width}×{height} px or larger) with preview before saving and overwrite the existing logo asset",
+      "sizeHint": "Current logo display size is about {width} × {height} px (square 1:1 ratio).\nRecommended upload size is at least {width2x} × {height2x} px for best sharpness. PNG with transparent background is preferred.",
+      "preview": "Logo Preview",
+      "previewAlt": "Logo preview",
+      "siteNameLabel": "Site Name (used in browser tab)",
+      "siteNamePlaceholder": "e.g. Yolk Corner",
+      "uploadLabel": "Upload Logo File",
+      "saving": "Saving branding...",
+      "savingButton": "Saving...",
+      "saveButton": "Save",
+      "saved": "Branding saved successfully",
+      "saveFailed": "Failed to upload or save logo",
+      "loadFailed": "Failed to load branding",
+      "cancelled": "Branding changes discarded",
+      "noChanges": "No changes to save",
+      "supportedFiles": "Supported files: PNG, JPG, WEBP, AVIF (max 12MB)"
+    },
+    "navbar": {
+      "logoHomeAria": "Go to home",
+      "logoAlt": "Website logo",
+      "languageEn": "EN",
+      "languageTh": "TH"
+    },
+    "browserTitle": {
+      "home": "Home",
+      "about": "About",
+      "gallery": "Gallery",
+      "portfolio": "Portfolio",
+      "portfolioDetail": "Portfolio Detail",
+      "blog": "Blog",
+      "blogDetail": "Blog Detail",
+      "news": "News & Promotions",
+      "newsDetail": "News Detail",
+      "download": "Download",
+      "downloadGallery": "Download Gallery",
+      "contact": "Contact",
+      "fallback": "Page"
+    },
+    "members": {
+      "role1": "Photographer",
+      "role2": "Videographer",
+      "role3": "Creative Director",
+      "role4": "Project Manager"
+    },
+    "all": "All",
+    "portfolioCategories": {
+      "wedding": "Wedding",
+      "ordination": "Ordination",
+      "event": "Event",
+      "product": "Product"
+    },
+    "downloadEvents": {
+      "event1": "Wedding: A & B",
+      "event2": "Ordination: C",
+      "event3": "Event: XYZ Corp",
+      "event4": "Product: Brand D"
+    },
+    "common": {
+      "loading": "Loading...",
+      "loadingData": "Loading data...",
+      "loadMore": "Loading more photos...",
+      "scrollToLoadMore": "Scroll down to load more",
+      "noAlbums": "No albums yet",
+      "noPhotos": "No photos found",
+      "photosUnit": "photos",
+      "albumUnit": "albums",
+      "viewPhotos": "View Photos",
+      "back": "Back",
+      "previous": "Previous",
+      "next": "Next",
+      "download": "Download",
+      "close": "Close",
+      "cancel": "Cancel",
+      "logout": "Logout",
+      "switchLanguage": "Switch Language",
+      "menu": "Menu",
+      "socialMedia": "Social Media",
+      "messageSent": "Message sent!",
+      "eventGallery": "Event Gallery"
+    },
+    "notFound": {
+      "title": "Oops! Page not found",
+      "returnHome": "Return to Home"
+    },
+    "adminLogin": {
+      "title": "Admin Login",
+      "email": "Email",
+      "password": "Password",
+      "login": "Login",
+      "loginFailed": "Login failed"
+    },
+    "admin": {
+      "title": "Admin Dashboard",
+      "logout": "Logout",
+      "createAlbum": "Create New Album",
+      "albumName": "Album name",
+      "coverImage": "Choose album cover",
+      "create": "Create Album",
+      "uploading": "Uploading...",
+      "uploadImage": "Upload Images to Album",
+      "chooseAlbum": "-- Select album --",
+      "chooseImage": "Choose image",
+      "uploadImageButton": "Upload Image",
+      "allAlbums": "All Albums",
+      "delete": "Delete",
+      "confirmDelete": "Are you sure you want to delete this album?",
+      "photosLimit": "{count}/100 photos",
+      "needAlbumAndCover": "Please enter an album name and choose a cover image",
+      "coverUploadFailed": "Failed to upload cover image",
+      "albumCreated": "Album created successfully",
+      "createAlbumFailed": "Failed to create album",
+      "unexpectedError": "Unexpected error",
+      "needAlbumAndImage": "Please select an album and an image",
+      "maxPhotosReached": "This album already has 100 photos",
+      "imageUploadFailed": "Failed to upload image",
+      "imageUploaded": "Image uploaded successfully",
+      "deleteSuccess": "Album deleted successfully",
+      "deleteFailed": "Failed to delete album"
+    },
+    "floatingChat": {
+      "open": "Open chat channels",
+      "close": "Close chat channels"
+    },
+    "blogPage": {
+      "loadingTitle": "Blog",
+      "noPosts": "No blog posts yet"
+    },
+    "blogDetail": {
+      "loading": "Loading...",
+      "notFound": "Blog not found",
+      "back": "Back to Blog",
+      "galleryTitle": "Blog Images",
+      "shareTitle": "Share This Post",
+      "shareFacebook": "Share to Facebook",
+      "recommended": "Recommended",
+      "copyLink": "Copy Link"
+    },
+    "newsPage": {
+      "loadingTitle": "News & Promotions",
+      "noNews": "No active news right now"
+    },
+    "newsDetail": {
+      "loading": "Loading...",
+      "notFound": "News not found",
+      "back": "Back to News",
+      "contactCta": "Contact Us for This Promotion"
+    },
+    "downloadDetail": {
+      "backToDownload": "Back to Download",
+      "iosHint": "iPhone: Use the \"Save to Photos\" button for easier saving",
+      "dismiss": "Close",
+      "downloadFail": "Download failed. Please try again.",
+      "downloading": "Processing...",
+      "saveToPhotos": "Save to Photos",
+      "iosFallbackNotice": "On iPhone, if it does not save automatically, press and hold the image and choose \"Save Image\" or tap Share > Save Image"
+    },
+    "contact": {
+      "title": "Contact Us",
+      "phone": "Phone",
+      "email": "Email",
+      "address": "Address",
+      "name": "Name",
+      "message": "Message",
+      "send": "Send",
+      "sendingButton": "Sending...",
+      "emailSubjectPrefix": "[Website Contact]",
+      "anonymousContactName": "Contact",
+      "emailBodyNameLabel": "Name",
+      "emailBodyEmailLabel": "Contact Email",
+      "emailBodyMessageLabel": "Message",
+      "noTargetEmail": "No destination email is configured. Please contact the website administrator.",
+      "sendingMessage": "Sending message...",
+      "sendFailed": "Failed to send message. Please try again.",
+      "systemSendFailed": "System delivery failed. You can use the mail app button below instead.",
+      "mailtoUnavailable": "No destination email is configured, so mailto cannot be opened.",
+      "sendViaMailto": "Send via email app (mailto)",
+      "targetEmailLabel": "Destination Email"
+    },
+    "footer": {
+      "rights": "All rights reserved",
+      "adminLogin": "login for admin",
+      "copyrightPrefix": "© 2026 YOLK CORNER."
+    },
+    "social": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "tiktok": "TikTok",
+      "line": "Line",
+      "messenger": "Messenger"
+    },
+    "albumPasswordModal": {
+      "errorIncomplete": "Please enter all 4 digits",
+      "closeAria": "Close",
+      "digitAria": "Digit {n}",
+      "save": "Save"
+    }
+  }
+}

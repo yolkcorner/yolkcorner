@@ -1,0 +1,76 @@
+Google drive
+
+Service Account JSON key
+
+- ไปที่: https://console.cloud.google.com/
+- สร้าง/เลือกโปรเจกต์
+- เปิด Google Drive API ที่ APIs & Services > Library
+- ไป IAM & Admin > Service Accounts แล้วกด Create Service Account
+- เข้า service account ที่สร้าง → แท็บ Keys → Add Key > Create new key > JSON
+- ระบบจะดาวน์โหลดไฟล์ .json มาให้ทันที
+
+จากนั้น:
+
+เอาอีเมลของ service account (ในไฟล์ JSON ช่อง client_email) ไปแชร์โฟลเดอร์ Google Drive ให้สิทธิ์ Viewer
+นำ JSON ทั้งก้อนไปใส่ GOOGLE_SERVICE_ACCOUNT_JSON ใน .env.local (แปลงเป็น one-line)
+
+--------------------------------------------------------------------------------------------------------
+
+สำหรับ Google (Gmail / Google Workspace) ให้ใช้แบบนี้ได้เลย
+
+วิธีเอาค่าแต่ละตัว
+
+SMTP_HOST, SMTP_PORT, SMTP_SECURE
+ใช้ค่าคงที่ของ Google:
+smtp.gmail.com
+พอร์ต 587 + SMTP_SECURE=false (แนะนำ)
+หรือพอร์ต 465 + SMTP_SECURE=true
+SMTP_USER
+คืออีเมล Google ที่จะใช้ส่งจริง
+เช่น contact@yourdomain.com (แนะนำให้เป็นเมลองค์กร)
+SMTP_PASS
+ต้องเป็น App Password (ไม่ใช่รหัสผ่านปกติ)
+ขั้นตอน:
+เข้า Google Account ของเมลที่จะส่ง
+Security > เปิด 2-Step Verification
+Security > App passwords
+เลือก Mail / ตั้งชื่อแอป > Generate
+เอารหัส 16 ตัวที่ได้มาใส่ SMTP_PASS
+SMTP_FROM
+ชื่อผู้ส่งที่อยากให้ลูกค้าเห็น
+ตัวอย่าง: Yolk Corner <contact@yourdomain.com>
+ข้อควรเช็กเพิ่มเพื่อไม่ให้เข้า Spam
+
+ใช้โดเมนองค์กร (Workspace) ดีกว่า @gmail.com
+ตั้ง DNS ให้ครบ: SPF, DKIM, DMARC
+ค่า SMTP_FROM ควรเป็นเมลเดียวกับ SMTP_USER หรือเป็น alias ที่บัญชีนั้นส่งได้
+
+---------------------------------------------------------------------------------------------------------------
+Google site Verification
+
+ใช้สำหรับ:
+
+ยืนยันโดเมนใน Google Search Console
+เปิดสิทธิ์ดูข้อมูลการค้นหา (impressions, clicks, index coverage)
+ส่ง sitemap และติดตามปัญหา SEO ได้
+ปกติค่าที่กรอกจะเป็น token แบบนี้:
+
+google-site-verification=xxxxxxxxxxxxxxxx
+แล้วระบบจะเอาไปใส่เป็น meta tag ใน <head> ประมาณ:
+
+เอาได้จาก Google Search Console โดยตรงครับ ขั้นตอนสั้นๆ:
+
+ไปที่ https://search.google.com/search-console แล้วล็อกอิน Google
+กด Add property
+เลือกแบบใดแบบหนึ่ง:
+Domain (ครอบคลุมทั้งโดเมนและ subdomain)
+URL prefix (เฉพาะ URL ที่ระบุ)
+ถ้าเลือก URL prefix ให้เลือกวิธี HTML tag
+Google จะให้โค้ดลักษณะนี้:
+<meta name="google-site-verification" content="xxxxxxxxxxxx" />
+ในช่อง Google Site Verification (optional) ของ admin:
+ใส่แค่ค่า content (คือ xxxxxxxxxxxx) หรือบางระบบรับทั้ง google-site-verification=xxxxxxxxxxxx
+กดบันทึกใน admin แล้วกลับไป Search Console กด Verify
+ถ้าอยาก ผมช่วยเช็กให้ต่อได้ทันทีว่าโปรเจกต์ของคุณตอนนี้ต้องใส่แบบไหนแน่ (ใส่เฉพาะ token หรือใส่ทั้ง google-site-verification=...) เพื่อกัน verify ไม่ผ่าน.
+
+การกำหนด username เเละ Password ให้รันคำสั่ง : node -e "console.log(require('bcryptjs').hashSync('ใส่ password ที่นี่', 10))"

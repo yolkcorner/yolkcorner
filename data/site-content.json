@@ -1,0 +1,115 @@
+{
+  "branding": {
+    "siteName": "ํYOLK CORNER",
+    "logoUrl": "/logo.png?v=20260313"
+  },
+  "hero": {
+    "title": "",
+    "titleEn": "",
+    "subtitle": "",
+    "subtitleEn": "",
+    "ctaLabel": "",
+    "ctaLabelEn": "",
+    "ctaHref": "/portfolio",
+    "showCta": true,
+    "secondaryButtonLabel": "เกี่ยวกับเรา",
+    "secondaryButtonLabelEn": "About",
+    "secondaryButtonHref": "/about",
+    "showSecondaryButton": true,
+    "backgroundUrl": "/hero-bg.png",
+    "slides": [
+      {
+        "id": "hero-slide-1773786578507-fcc7bw",
+        "title": "",
+        "titleEn": "",
+        "subtitle": "",
+        "subtitleEn": "",
+        "ctaLabel": "",
+        "ctaLabelEn": "",
+        "ctaHref": "/portfolio",
+        "showCta": true,
+        "secondaryButtonLabel": "เกี่ยวกับเรา",
+        "secondaryButtonLabelEn": "About",
+        "secondaryButtonHref": "/about",
+        "showSecondaryButton": true,
+        "backgroundUrl": "/hero-bg.png"
+      }
+    ]
+  },
+  "services": {
+    "title": "บริการของเรา",
+    "titleEn": "Our Services",
+    "categories": []
+  },
+  "about": {
+    "title": "เกี่ยวกับเรา",
+    "titleEn": "About Us",
+    "subtitle": "ทีมงานมืออาชีพที่พร้อมสร้างสรรค์ผลงานให้คุณ",
+    "subtitleEn": "A professional team ready to create for you",
+    "members": []
+  },
+  "portfolio": {
+    "title": "ผลงาน",
+    "titleEn": "Portfolio",
+    "categories": [],
+    "albums": []
+  },
+  "contact": {
+    "phones": [],
+    "emails": [],
+    "address": "",
+    "addressEn": "",
+    "socials": {
+      "facebook": {
+        "enabled": false,
+        "url": "www.google.com"
+      },
+      "instagram": {
+        "enabled": false,
+        "url": "www.google.com"
+      },
+      "tiktok": {
+        "enabled": false,
+        "url": "www.google.com"
+      },
+      "line": {
+        "enabled": false,
+        "url": "www.google.com"
+      }
+    },
+    "formTargetEmail": "Yolk Cornerproductionfiles@gmail.com"
+  },
+  "news": {
+    "title": "ข่าวสารและโปรโมชั่น",
+    "titleEn": "News & Promotions",
+    "items": []
+  },
+  "story": {
+    "title": "บล็อก",
+    "titleEn": "Blog",
+    "items": []
+  },
+  "openingModals": [],
+  "seo": {
+    "descriptionTh": "Yolk Corner Production รับถ่ายภาพและวิดีโอมืออาชีพ สำหรับงานแต่ง งานอีเวนต์ และงานองค์กร",
+    "descriptionEn": "Yolk Corner Production provides professional photography and videography for weddings, events, and corporate projects.",
+    "keywordsTh": [
+      "ช่างภาพ",
+      "ช่างวิดีโอ",
+      "ถ่ายภาพงานแต่ง",
+      "ถ่ายวิดีโออีเวนต์",
+      "Yolk Corner"
+    ],
+    "keywordsEn": [
+      "photography",
+      "videography",
+      "wedding photographer",
+      "event videography",
+      "Yolk Corner production"
+    ],
+    "googleSiteVerification": "",
+    "allowIndexing": true,
+    "allowFollowing": true
+  },
+  "downloadPasswords": {}
+}
