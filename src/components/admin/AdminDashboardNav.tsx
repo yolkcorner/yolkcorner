@@ -28,8 +28,8 @@ import { Lock as LockIcon } from "lucide-react";
 const adminItems = [
   {
     href: "/admin/password",
-    labelTh: "ตั้งรหัสผ่านดาวน์โหลด",
-    labelEn: "Download Password",
+    labelTh: "การจัดการโฟโต้บูธ",
+    labelEn: "Photo Booth Management",
     icon: LockIcon,
   },
   {
@@ -106,10 +106,10 @@ function AdminNavLinks({ pathname, isTh, onNavigate }: AdminNavLinksProps) {
             href={item.href}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 rounded-md border border-transparent px-3 py-2 text-sm transition-colors",
+              "flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm transition",
               pathname === item.href
-                ? "bg-[#FF5B00] text-white border-[#FF5B00]"
-                : "text-foreground hover:bg-secondary",
+                ? "border-[#ff7a2e] bg-linear-to-r from-[#ff8b3d] to-[#ff5b00] text-white shadow-[0_8px_22px_rgba(255,91,0,0.32)]"
+                : "text-[#4d3a2e] hover:border-[#ebd5bf] hover:bg-[#fff3e5]",
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
@@ -144,7 +144,7 @@ export default function AdminDashboardNav() {
 
   return (
     <>
-      <div className="md:hidden rounded-lg border border-border bg-card p-3">
+      <div className="md:hidden rounded-2xl border border-white/60 bg-white/80 p-3 shadow-[0_10px_30px_rgba(120,58,12,0.1)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
           <Link href="/admin" className="inline-flex items-center gap-2">
             <Image
@@ -158,13 +158,15 @@ export default function AdminDashboardNav() {
               fetchPriority="high"
               priority
             />
-            <span className="text-sm font-semibold tracking-wide">Admin</span>
+            <span className="text-sm font-semibold tracking-wide text-[#2b1a10]">
+              Admin
+            </span>
           </Link>
 
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="rounded-md border border-border p-2"
+            className="rounded-xl border border-[#e3d2bf] bg-[#f8eee2] p-2 text-[#4d3a2e]"
             aria-label={lang === "th" ? "เปิดเมนู" : "Open menu"}
           >
             <Menu className="h-4 w-4" />
@@ -178,7 +180,7 @@ export default function AdminDashboardNav() {
           onClick={() => setMobileOpen(false)}
         >
           <aside
-            className="flex h-full w-[90%] max-w-sm flex-col border-r border-border bg-card p-4"
+            className="flex h-full w-[90%] max-w-sm flex-col border-r border-white/50 bg-[#fff9f1]/95 p-4 shadow-[0_20px_60px_rgba(120,58,12,0.2)] backdrop-blur-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -197,14 +199,14 @@ export default function AdminDashboardNav() {
                   loading="lazy"
                   fetchPriority="low"
                 />
-                <span className="text-sm font-semibold tracking-wide">
+                <span className="text-sm font-semibold tracking-wide text-[#2b1a10]">
                   Admin
                 </span>
               </Link>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-md border border-border p-2"
+                className="rounded-xl border border-[#e3d2bf] bg-[#f8eee2] p-2 text-[#4d3a2e]"
                 aria-label={lang === "th" ? "ปิดเมนู" : "Close menu"}
               >
                 <X className="h-4 w-4" />
@@ -218,14 +220,14 @@ export default function AdminDashboardNav() {
               />
             </div>
 
-            <div className="mt-4 border-t border-border pt-4 space-y-2">
+            <div className="mt-4 space-y-2 border-t border-[#ead7c2] pt-4">
               <button
                 type="button"
                 onClick={() => {
                   handleToggleLanguage();
                   setMobileOpen(false);
                 }}
-                className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                className="flex w-full items-center gap-2 rounded-xl border border-[#e3d2bf] bg-[#fff4e8] px-3 py-2 text-sm text-[#6f5a4b] transition hover:bg-[#ffe6cf] hover:text-[#2b1a10]"
               >
                 <Globe className="h-4 w-4" />
                 <span>
@@ -236,7 +238,7 @@ export default function AdminDashboardNav() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                className="flex w-full items-center gap-2 rounded-xl border border-[#e3d2bf] bg-white/80 px-3 py-2 text-sm text-[#2b1a10] transition hover:bg-[#fff3e5]"
               >
                 <LogOut className="h-4 w-4" />
                 <span>{t.common.logout}</span>
@@ -246,7 +248,7 @@ export default function AdminDashboardNav() {
         </div>
       )}
 
-      <aside className="hidden md:flex md:h-[calc(100vh-3rem)] md:sticky md:top-6 md:w-80 md:flex-col rounded-lg border border-border bg-card p-3">
+      <aside className="hidden rounded-3xl border border-white/60 bg-white/80 p-3 shadow-[0_16px_50px_rgba(120,58,12,0.14)] backdrop-blur-xl md:sticky md:top-6 md:flex md:h-[calc(100vh-3rem)] md:w-80 md:flex-col">
         <div className="mb-4 flex items-center gap-2">
           <Link href="/admin" className="inline-flex items-center gap-2">
             <Image
@@ -260,7 +262,7 @@ export default function AdminDashboardNav() {
               fetchPriority="high"
               priority
             />
-            <span className="text-sm font-semibold tracking-wide">
+            <span className="text-sm font-semibold tracking-wide text-[#2b1a10]">
               Admin Dashboard
             </span>
           </Link>
@@ -270,11 +272,11 @@ export default function AdminDashboardNav() {
           <AdminNavLinks pathname={pathname} isTh={lang === "th"} />
         </div>
 
-        <div className="mt-4 border-t border-border pt-4 space-y-2">
+        <div className="mt-4 space-y-2 border-t border-[#ead7c2] pt-4">
           <button
             type="button"
             onClick={handleToggleLanguage}
-            className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="flex w-full items-center gap-2 rounded-xl border border-[#e3d2bf] bg-[#fff4e8] px-3 py-2 text-sm text-[#6f5a4b] transition hover:bg-[#ffe6cf] hover:text-[#2b1a10]"
           >
             <Globe className="h-4 w-4" />
             <span>
@@ -285,7 +287,7 @@ export default function AdminDashboardNav() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+            className="flex w-full items-center gap-2 rounded-xl border border-[#e3d2bf] bg-white/80 px-3 py-2 text-sm text-[#2b1a10] transition hover:bg-[#fff3e5]"
           >
             <LogOut className="h-4 w-4" />
             <span>{t.common.logout}</span>

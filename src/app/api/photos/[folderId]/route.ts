@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  getEventPrefix,
   listDownloadPhotos,
   normalizeEventId,
   resolveR2FileUrl,
 } from '@/lib/download-r2';
-import { getR2PublicUrlError, isR2Configured } from '@/lib/r2';
+import {
+  deleteFromR2,
+  deleteMultipleFromR2,
+  getR2PublicUrlError,
+  isR2Configured,
+  listR2Folder,
+} from '@/lib/r2';
+import { verifyToken } from '@/lib/auth';
 import path from 'node:path';
+
+const hasAdminAccess = (req: NextRequest) => {
+  const token = req.cookies.get('token')?.value || '';
+  const user = token ? verifyToken(token) : null;
+  return user?.role === 'admin';
+};
 
 export async function GET(
   req: NextRequest,
@@ -115,6 +129,63 @@ export async function GET(
         error: 'Failed to fetch data',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         details: (error as any)?.message || String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ folderId: string }> }
+) {
+  try {
+    if (!hasAdminAccess(req)) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
+
+    if (!isR2Configured()) {
+      return NextResponse.json(
+        { error: 'R2 storage is not configured' },
+        { status: 503 }
+      );
+    }
+
+    const { folderId } = await params;
+    const safeFolderId = normalizeEventId(folderId);
+    if (!safeFolderId) {
+      return NextResponse.json({ error: 'Missing folderId' }, { status: 400 });
+    }
+
+    const targetFileId = req.nextUrl.searchParams.get('fileId');
+    const folderPrefix = getEventPrefix(safeFolderId);
+
+    if (targetFileId) {
+      const decodedFileId = decodeURIComponent(targetFileId);
+      if (!decodedFileId.startsWith(folderPrefix)) {
+        return NextResponse.json(
+          { error: 'Invalid file target' },
+          { status: 400 }
+        );
+      }
+
+      await deleteFromR2(decodedFileId);
+      return NextResponse.json({ ok: true, deleted: 1 });
+    }
+
+    const keys = await listR2Folder(folderPrefix);
+    if (!keys.length) {
+      return NextResponse.json({ ok: true, deleted: 0 });
+    }
+
+    await deleteMultipleFromR2(keys);
+    return NextResponse.json({ ok: true, deleted: keys.length });
+  } catch (error) {
+    console.error('R2 delete API error:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to delete data',
+        details: (error as Error)?.message || String(error),
       },
       { status: 500 }
     );

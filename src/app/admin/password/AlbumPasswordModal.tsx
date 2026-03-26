@@ -70,7 +70,7 @@ export default function AlbumPasswordModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm px-4">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_20px_70px_rgba(0,0,0,0.35)] animate-fade-in">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[#f3e1cc] bg-white/95 shadow-[0_20px_70px_rgba(0,0,0,0.3)] backdrop-blur-xl">
         <button
           className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-gray-500 transition hover:scale-105 hover:text-black"
           onClick={onClose}
@@ -86,6 +86,7 @@ export default function AlbumPasswordModal({
               width={108}
               height={108}
               className="h-38 w-60 rounded-lg object-cover"
+              unoptimized
             />
           </div>
 

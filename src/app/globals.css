@@ -121,3 +121,43 @@ html {
     transition: none !important;
   }
 }
+
+.admin-theme :where(section.rounded-lg.border.border-border.bg-card) {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1.15rem;
+  box-shadow: 0 14px 40px rgba(120, 58, 12, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.admin-theme :where(div.rounded-lg.border.border-border.bg-card) {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1rem;
+}
+
+.admin-theme :where(input, textarea, select) {
+  border-color: #e3d2bf;
+  background: #f3ede5;
+  color: #2b1a10;
+}
+
+.admin-theme :where(input, textarea, select):focus {
+  outline: none;
+  border-color: #ff7a2e;
+  box-shadow: 0 0 0 3px rgba(255, 122, 46, 0.15);
+}
+
+.admin-theme :where(label) {
+  color: #6f5a4b;
+}
+
+.admin-theme :where(button.rounded-md.border.border-border) {
+  border-color: #e3d2bf;
+  background: #fff4e8;
+  color: #4d3a2e;
+}
+
+.admin-theme :where(button.rounded-md.border.border-border):hover {
+  background: #ffe6cf;
+}
