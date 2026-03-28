@@ -71,6 +71,9 @@ export default function DownloadDetailClient({
 
   const [photos, setPhotos] = React.useState<Photo[]>([]);
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
+  const [selectedPhotoId, setSelectedPhotoId] = React.useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [nextPageToken, setNextPageToken] = React.useState<string | null>(null);
@@ -106,6 +109,21 @@ export default function DownloadDetailClient({
   const eventSourceRef = React.useRef<EventSource | null>(null);
   const fallbackIntervalRef = React.useRef<number | null>(null);
   const reconnectTimeoutRef = React.useRef<number | null>(null);
+  const wasModalOpenRef = React.useRef(false);
+
+  const closeModal = React.useCallback(() => {
+    setSelectedIndex(null);
+    setSelectedPhotoId(null);
+  }, []);
+
+  const modalIndex = React.useMemo(() => {
+    if (selectedPhotoId) {
+      const idx = photos.findIndex((photo) => photo.id === selectedPhotoId);
+      return idx >= 0 ? idx : null;
+    }
+
+    return selectedIndex;
+  }, [photos, selectedPhotoId, selectedIndex]);
 
   React.useEffect(() => {
     setMounted(true);
@@ -172,6 +190,7 @@ export default function DownloadDetailClient({
   React.useEffect(() => {
     setSelectMode(false);
     setSelectedPhotoIds([]);
+    setSelectedPhotoId(null);
   }, [folderId]);
 
   React.useEffect(() => {
@@ -242,6 +261,7 @@ export default function DownloadDetailClient({
   );
 
   const refreshLatestPhotos = React.useCallback(async () => {
+    if (modalIndex !== null) return;
     if (!folderId || autoRefreshInFlightRef.current) return;
     if (
       typeof document !== "undefined" &&
@@ -319,7 +339,21 @@ export default function DownloadDetailClient({
     } finally {
       autoRefreshInFlightRef.current = false;
     }
-  }, [folderId, PAGE_SIZE]);
+  }, [folderId, PAGE_SIZE, modalIndex]);
+
+  React.useEffect(() => {
+    const isOpen = modalIndex !== null;
+
+    if (isOpen) {
+      wasModalOpenRef.current = true;
+      return;
+    }
+
+    if (wasModalOpenRef.current) {
+      wasModalOpenRef.current = false;
+      refreshLatestPhotos();
+    }
+  }, [modalIndex, refreshLatestPhotos]);
 
   React.useEffect(() => {
     if (albumPassword && passwordEntered !== albumPassword) {
@@ -457,59 +491,59 @@ export default function DownloadDetailClient({
   }, [loading, loadingMore, hasMore, nextPageToken, fetchPhotos]);
 
   React.useEffect(() => {
-    if (selectedIndex !== null) {
+    if (modalIndex !== null) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
       setModalImageLoading(false);
     }
-  }, [selectedIndex]);
+  }, [modalIndex]);
 
   React.useEffect(() => {
-    if (selectedIndex === null || photos.length === 0) return;
+    if (modalIndex === null || photos.length === 0) return;
 
-    const current = photos[selectedIndex];
-    const next = photos[(selectedIndex + 1) % photos.length];
-    const prev = photos[(selectedIndex - 1 + photos.length) % photos.length];
+    const current = photos[modalIndex];
+    const next = photos[(modalIndex + 1) % photos.length];
+    const prev = photos[(modalIndex - 1 + photos.length) % photos.length];
 
     [current, next, prev].forEach((photo) => {
       if (!photo?.previewUrl) return;
       const image = new window.Image();
       image.src = photo.previewUrl;
     });
-  }, [selectedIndex, photos]);
+  }, [modalIndex, photos]);
 
   const goNext = React.useCallback(() => {
-    if (selectedIndex === null || photos.length === 0) return;
+    if (modalIndex === null || photos.length === 0) return;
     setScale(1);
     setModalImageLoading(true);
-    setSelectedIndex((prev) =>
-      prev === null ? null : (prev + 1) % photos.length,
-    );
+    const nextIndex = (modalIndex + 1) % photos.length;
+    setSelectedIndex(nextIndex);
+    setSelectedPhotoId(photos[nextIndex]?.id || null);
     setTranslateX(0);
-  }, [selectedIndex, photos.length]);
+  }, [modalIndex, photos]);
 
   const goPrev = React.useCallback(() => {
-    if (selectedIndex === null || photos.length === 0) return;
+    if (modalIndex === null || photos.length === 0) return;
     setScale(1);
     setModalImageLoading(true);
-    setSelectedIndex((prev) =>
-      prev === null ? null : (prev - 1 + photos.length) % photos.length,
-    );
+    const prevIndex = (modalIndex - 1 + photos.length) % photos.length;
+    setSelectedIndex(prevIndex);
+    setSelectedPhotoId(photos[prevIndex]?.id || null);
     setTranslateX(0);
-  }, [selectedIndex, photos.length]);
+  }, [modalIndex, photos]);
 
   React.useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (selectedIndex === null) return;
-      if (e.key === "Escape") setSelectedIndex(null);
+      if (modalIndex === null) return;
+      if (e.key === "Escape") closeModal();
       if (e.key === "ArrowRight") goNext();
       if (e.key === "ArrowLeft") goPrev();
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selectedIndex, goNext, goPrev]);
+  }, [modalIndex, goNext, goPrev, closeModal]);
 
   const getTouchDistance = (touches: React.TouchList) => {
     if (touches.length < 2) return 0;
@@ -686,9 +720,9 @@ export default function DownloadDetailClient({
   }, []);
 
   const startSelection = React.useCallback(() => {
-    setSelectedIndex(null);
+    closeModal();
     setSelectMode(true);
-  }, []);
+  }, [closeModal]);
 
   const clearLongPressTimer = React.useCallback(() => {
     if (longPressTimeoutRef.current !== null) {
@@ -708,7 +742,7 @@ export default function DownloadDetailClient({
 
     longPressStartRef.current = { x: event.clientX, y: event.clientY };
     longPressTimeoutRef.current = window.setTimeout(() => {
-      setSelectedIndex(null);
+      closeModal();
       setSelectMode(true);
       setSelectedPhotoIds((prev) =>
         prev.includes(photoId) ? prev : [...prev, photoId],
@@ -744,6 +778,7 @@ export default function DownloadDetailClient({
     }
 
     setSelectedIndex(index);
+    setSelectedPhotoId(photoId);
     setScale(1);
     setModalImageLoading(true);
   };
@@ -1018,7 +1053,7 @@ export default function DownloadDetailClient({
                           onContextMenu={(event) => {
                             event.preventDefault();
                             if (selectMode) return;
-                            setSelectedIndex(null);
+                            closeModal();
                             setSelectMode(true);
                             setSelectedPhotoIds((prev) =>
                               prev.includes(photo.id)
@@ -1114,12 +1149,12 @@ export default function DownloadDetailClient({
           )}
 
         {mounted &&
-          selectedIndex !== null &&
-          photos[selectedIndex] &&
+          modalIndex !== null &&
+          photos[modalIndex] &&
           createPortal(
             <div
               className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-              onClick={() => setSelectedIndex(null)}
+              onClick={closeModal}
             >
               <div
                 className="relative flex flex-col items-center"
@@ -1127,7 +1162,7 @@ export default function DownloadDetailClient({
               >
                 <button
                   className="absolute -top-12 right-0 bg-black/80 p-3 rounded-full text-white z-30"
-                  onClick={() => setSelectedIndex(null)}
+                  onClick={closeModal}
                 >
                   <X size={22} />
                 </button>
@@ -1142,9 +1177,9 @@ export default function DownloadDetailClient({
                     </div>
                   )}
                   <Image
-                    key={photos[selectedIndex].id}
-                    src={photos[selectedIndex].previewUrl || ""}
-                    alt={photos[selectedIndex].name}
+                    key={photos[modalIndex].id}
+                    src={photos[modalIndex].previewUrl || ""}
+                    alt={photos[modalIndex].name}
                     unoptimized
                     width={1400}
                     height={600}
@@ -1197,10 +1232,10 @@ export default function DownloadDetailClient({
                     </button>
                   </div>
 
-                  {photos[selectedIndex].downloadUrl && (
+                  {photos[modalIndex].downloadUrl && (
                     <button
                       type="button"
-                      onClick={() => handleDownload(photos[selectedIndex])}
+                      onClick={() => handleDownload(photos[modalIndex])}
                       disabled={downloading}
                       className="bg-primary text-white px-5 py-3 min-h-11 rounded-lg flex items-center gap-2 shadow-md disabled:opacity-60 md:ml-auto"
                     >
