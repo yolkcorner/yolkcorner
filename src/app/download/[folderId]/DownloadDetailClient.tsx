@@ -102,8 +102,6 @@ export default function DownloadDetailClient({
   const suppressNextClickRef = React.useRef(false);
   const longPressTimeoutRef = React.useRef<number | null>(null);
   const longPressStartRef = React.useRef<{ x: number; y: number } | null>(null);
-  const photoColumnMapRef = React.useRef<Map<string, number>>(new Map());
-  const nextColumnRef = React.useRef(0);
   const loadMoreRef = React.useRef<HTMLDivElement | null>(null);
   const autoRefreshInFlightRef = React.useRef(false);
   const eventSourceRef = React.useRef<EventSource | null>(null);
@@ -192,12 +190,6 @@ export default function DownloadDetailClient({
     setSelectedPhotoIds([]);
     setSelectedPhotoId(null);
   }, [folderId]);
-
-  React.useEffect(() => {
-    // Reset pinned columns when album or responsive column count changes.
-    photoColumnMapRef.current.clear();
-    nextColumnRef.current = 0;
-  }, [folderId, columnCount]);
 
   React.useEffect(() => {
     return () => {
@@ -902,34 +894,6 @@ export default function DownloadDetailClient({
       : `${selectedPhotoIds.length} photos selected`)
   ).replace("{count}", String(selectedPhotoIds.length));
 
-  const photoColumns = React.useMemo(() => {
-    const totalColumns = Math.max(1, columnCount);
-    const columns: Array<Array<{ photo: Photo; index: number }>> = Array.from(
-      { length: totalColumns },
-      () => [] as Array<{ photo: Photo; index: number }>,
-    );
-
-    const columnMap = photoColumnMapRef.current;
-    const activeIds = new Set(photos.map((photo) => photo.id));
-    for (const existingId of Array.from(columnMap.keys())) {
-      if (!activeIds.has(existingId)) {
-        columnMap.delete(existingId);
-      }
-    }
-
-    photos.forEach((photo: Photo, index: number) => {
-      let columnIndex = columnMap.get(photo.id);
-      if (columnIndex === undefined || columnIndex >= totalColumns) {
-        columnIndex = nextColumnRef.current % totalColumns;
-        nextColumnRef.current = (nextColumnRef.current + 1) % totalColumns;
-        columnMap.set(photo.id, columnIndex);
-      }
-      columns[columnIndex].push({ photo, index });
-    });
-
-    return columns;
-  }, [photos, columnCount]);
-
   // Password modal logic
   if (albumPassword && passwordEntered !== albumPassword) {
     // Detect Thai language from browser
@@ -1012,76 +976,60 @@ export default function DownloadDetailClient({
             gridTemplateColumns: `repeat(${Math.max(1, columnCount)}, minmax(0, 1fr))`,
           }}
         >
-          {photoColumns.map(
-            (
-              column: Array<{ photo: Photo; index: number }>,
-              columnIndex: number,
-            ) => (
-              <div
-                key={`col-${columnIndex}`}
-                className="flex flex-col gap-3 md:gap-4"
-              >
-                {column.map(
-                  ({ photo, index }: { photo: Photo; index: number }) => (
-                    <div key={photo.id}>
-                      <div className="relative">
-                        <Image
-                          src={photo.previewUrl || ""}
-                          alt={photo.name}
-                          unoptimized
-                          priority={index === 0}
-                          loading={index === 0 ? "eager" : "lazy"}
-                          width={photo.width || 1200}
-                          height={photo.height || 800}
-                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
-                          className={`w-full rounded-lg cursor-pointer transition ${
-                            selectedIdSet.has(photo.id)
-                              ? "ring-2 ring-primary ring-offset-2"
-                              : "hover:opacity-80"
-                          }`}
-                          style={{
-                            WebkitTouchCallout: "none",
-                            userSelect: "none",
-                          }}
-                          onPointerDown={(event) =>
-                            handlePhotoPointerDown(photo.id, event)
-                          }
-                          onPointerMove={handlePhotoPointerMove}
-                          onPointerUp={clearLongPressTimer}
-                          onPointerCancel={clearLongPressTimer}
-                          onPointerLeave={clearLongPressTimer}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            if (selectMode) return;
-                            closeModal();
-                            setSelectMode(true);
-                            setSelectedPhotoIds((prev) =>
-                              prev.includes(photo.id)
-                                ? prev
-                                : [...prev, photo.id],
-                            );
-                          }}
-                          onClick={() => handlePhotoClick(photo.id, index)}
-                        />
+          {photos.map((photo: Photo, index: number) => (
+            <div key={photo.id}>
+              <div className="relative">
+                <Image
+                  src={photo.previewUrl || ""}
+                  alt={photo.name}
+                  unoptimized
+                  priority={index === 0}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  width={photo.width || 1200}
+                  height={photo.height || 800}
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
+                  className={`w-full rounded-lg cursor-pointer transition ${
+                    selectedIdSet.has(photo.id)
+                      ? "ring-2 ring-primary ring-offset-2"
+                      : "hover:opacity-80"
+                  }`}
+                  style={{
+                    WebkitTouchCallout: "none",
+                    userSelect: "none",
+                  }}
+                  onPointerDown={(event) =>
+                    handlePhotoPointerDown(photo.id, event)
+                  }
+                  onPointerMove={handlePhotoPointerMove}
+                  onPointerUp={clearLongPressTimer}
+                  onPointerCancel={clearLongPressTimer}
+                  onPointerLeave={clearLongPressTimer}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    if (selectMode) return;
+                    closeModal();
+                    setSelectMode(true);
+                    setSelectedPhotoIds((prev) =>
+                      prev.includes(photo.id) ? prev : [...prev, photo.id],
+                    );
+                  }}
+                  onClick={() => handlePhotoClick(photo.id, index)}
+                />
 
-                        {selectMode && (
-                          <div
-                            className={`pointer-events-none absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold ${
-                              selectedIdSet.has(photo.id)
-                                ? "border-primary bg-primary text-white"
-                                : "border-white/90 bg-black/35 text-white"
-                            }`}
-                          >
-                            {selectedIdSet.has(photo.id) ? "\u2713" : ""}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ),
+                {selectMode && (
+                  <div
+                    className={`pointer-events-none absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold ${
+                      selectedIdSet.has(photo.id)
+                        ? "border-primary bg-primary text-white"
+                        : "border-white/90 bg-black/35 text-white"
+                    }`}
+                  >
+                    {selectedIdSet.has(photo.id) ? "\u2713" : ""}
+                  </div>
                 )}
               </div>
-            ),
-          )}
+            </div>
+          ))}
         </div>
 
         {hasMore && (
