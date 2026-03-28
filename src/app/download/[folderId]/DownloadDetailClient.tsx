@@ -54,6 +54,8 @@ export default function DownloadDetailClient({
 }: {
   folderId: string;
 }) {
+  const PAGE_SIZE = 30;
+  const LONG_PRESS_MS = 350;
   const [albumPassword, setAlbumPassword] = React.useState<string | undefined>(
     undefined,
   );
@@ -64,7 +66,8 @@ export default function DownloadDetailClient({
   const [passwordEntered, setPasswordEntered] = React.useState<
     string | undefined
   >(undefined);
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const isTh = lang === "th";
 
   const [photos, setPhotos] = React.useState<Photo[]>([]);
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
@@ -77,10 +80,14 @@ export default function DownloadDetailClient({
   const [mounted, setMounted] = React.useState(false);
   const [modalImageLoading, setModalImageLoading] = React.useState(false);
   const [downloading, setDownloading] = React.useState(false);
+  const [batchDownloading, setBatchDownloading] = React.useState(false);
   const [downloadNotice, setDownloadNotice] = React.useState("");
   const [isIOS, setIsIOS] = React.useState(false);
   const [showIosHint, setShowIosHint] = React.useState(false);
   const [columnCount, setColumnCount] = React.useState(2);
+  const [isLgUp, setIsLgUp] = React.useState(false);
+  const [selectMode, setSelectMode] = React.useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = React.useState<string[]>([]);
 
   const [translateX, setTranslateX] = React.useState(0);
   const [isDragging, setIsDragging] = React.useState(false);
@@ -89,6 +96,11 @@ export default function DownloadDetailClient({
   const pinchStartScale = React.useRef(1);
   const isPinching = React.useRef(false);
   const lastTapTime = React.useRef(0);
+  const suppressNextClickRef = React.useRef(false);
+  const longPressTimeoutRef = React.useRef<number | null>(null);
+  const longPressStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  const photoColumnMapRef = React.useRef<Map<string, number>>(new Map());
+  const nextColumnRef = React.useRef(0);
   const loadMoreRef = React.useRef<HTMLDivElement | null>(null);
   const autoRefreshInFlightRef = React.useRef(false);
   const eventSourceRef = React.useRef<EventSource | null>(null);
@@ -134,9 +146,46 @@ export default function DownloadDetailClient({
       setColumnCount(resolveColumnCount());
     };
 
+    const applyViewportState = () => {
+      setIsLgUp(window.innerWidth >= 1024);
+    };
+
     applyColumnCount();
+    applyViewportState();
     window.addEventListener("resize", applyColumnCount);
-    return () => window.removeEventListener("resize", applyColumnCount);
+    window.addEventListener("resize", applyViewportState);
+    return () => {
+      window.removeEventListener("resize", applyColumnCount);
+      window.removeEventListener("resize", applyViewportState);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    setSelectedPhotoIds((prev) => {
+      if (prev.length === 0) return prev;
+      const activeIds = new Set(photos.map((photo) => photo.id));
+      const next = prev.filter((id) => activeIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [photos]);
+
+  React.useEffect(() => {
+    setSelectMode(false);
+    setSelectedPhotoIds([]);
+  }, [folderId]);
+
+  React.useEffect(() => {
+    // Reset pinned columns when album or responsive column count changes.
+    photoColumnMapRef.current.clear();
+    nextColumnRef.current = 0;
+  }, [folderId, columnCount]);
+
+  React.useEffect(() => {
+    return () => {
+      if (longPressTimeoutRef.current !== null) {
+        window.clearTimeout(longPressTimeoutRef.current);
+      }
+    };
   }, []);
 
   const fetchPhotos = React.useCallback(
@@ -151,7 +200,7 @@ export default function DownloadDetailClient({
       }
 
       try {
-        const query = new URLSearchParams({ pageSize: "50" });
+        const query = new URLSearchParams({ pageSize: String(PAGE_SIZE) });
         if (token) query.set("pageToken", token);
 
         const res = await fetch(`/api/photos/${folderId}?${query.toString()}`);
@@ -165,8 +214,15 @@ export default function DownloadDetailClient({
             .sort(compareFileNameDesc);
 
           setPhotos((current) => {
-            const merged = isLoadMore ? [...current, ...images] : images;
-            return merged.sort(compareFileNameDesc);
+            if (!isLoadMore) {
+              return images;
+            }
+
+            const existingIds = new Set(current.map((item) => item.id));
+            const appended = images.filter(
+              (item: Photo) => !existingIds.has(item.id),
+            );
+            return appended.length > 0 ? [...current, ...appended] : current;
           });
           const nextToken = data.nextPageToken || null;
           setNextPageToken(nextToken);
@@ -182,7 +238,7 @@ export default function DownloadDetailClient({
         }
       }
     },
-    [folderId],
+    [folderId, PAGE_SIZE],
   );
 
   const refreshLatestPhotos = React.useCallback(async () => {
@@ -196,7 +252,7 @@ export default function DownloadDetailClient({
 
     autoRefreshInFlightRef.current = true;
     try {
-      const query = new URLSearchParams({ pageSize: "50" });
+      const query = new URLSearchParams({ pageSize: String(PAGE_SIZE) });
       const res = await fetch(`/api/photos/${folderId}?${query.toString()}`);
       if (!res.ok) return;
 
@@ -212,29 +268,45 @@ export default function DownloadDetailClient({
       setPhotos((current) => {
         if (current.length === 0) return current;
 
-        const currentMap = new Map(current.map((item) => [item.id, item]));
+        const incomingMap = new Map<string, Photo>(
+          images.map((item: Photo) => [item.id, item]),
+        );
         let changed = false;
 
-        for (const item of images) {
-          const existing = currentMap.get(item.id);
-          if (!existing) {
-            currentMap.set(item.id, item);
-            changed = true;
-            continue;
-          }
+        const updatedCurrent = current.map((item) => {
+          const incoming = incomingMap.get(item.id);
+          if (!incoming) return item;
 
           if (
-            existing.previewUrl !== item.previewUrl ||
-            existing.downloadUrl !== item.downloadUrl ||
-            existing.name !== item.name
+            item.previewUrl !== incoming.previewUrl ||
+            item.downloadUrl !== incoming.downloadUrl ||
+            item.name !== incoming.name
           ) {
-            currentMap.set(item.id, item);
+            changed = true;
+            return incoming;
+          }
+
+          return item;
+        });
+
+        const currentIds = new Set(current.map((item) => item.id));
+        const newItems: Photo[] = [];
+
+        for (const item of images) {
+          const existing = currentIds.has(item.id);
+          if (!existing) {
+            newItems.push(item);
             changed = true;
           }
         }
 
         if (!changed) return current;
-        return Array.from(currentMap.values()).sort(compareFileNameDesc);
+        if (newItems.length === 0) {
+          return updatedCurrent;
+        }
+
+        // Place newly arrived latest photos at the top without reshuffling all loaded items.
+        return [...newItems, ...updatedCurrent];
       });
 
       const nextToken = data.nextPageToken || null;
@@ -247,7 +319,7 @@ export default function DownloadDetailClient({
     } finally {
       autoRefreshInFlightRef.current = false;
     }
-  }, [folderId]);
+  }, [folderId, PAGE_SIZE]);
 
   React.useEffect(() => {
     if (albumPassword && passwordEntered !== albumPassword) {
@@ -519,16 +591,19 @@ export default function DownloadDetailClient({
     );
   };
 
-  const handleDownload = async (photo: Photo) => {
-    if (!photo.downloadUrl) return;
+  const downloadPhotoFile = React.useCallback(
+    async (photo: Photo, allowIosShare = true) => {
+      if (!photo.downloadUrl) {
+        throw new Error("download url missing");
+      }
 
-    setDownloading(true);
-    try {
       const ios = isIOSDevice();
 
-      if (ios && navigator.share) {
+      if (allowIosShare && ios && navigator.share) {
         try {
-          const response = await fetch(photo.downloadUrl);
+          const response = await fetch(photo.downloadUrl, {
+            cache: "no-store",
+          });
           if (!response.ok) throw new Error("fetch failed");
 
           const blob = await response.blob();
@@ -548,29 +623,233 @@ export default function DownloadDetailClient({
             return;
           }
         } catch {
-          // fallback below
+          const fallbackUrl = photo.previewUrl || photo.downloadUrl;
+          window.open(fallbackUrl || "#", "_blank", "noopener,noreferrer");
+          setDownloadNotice(t?.downloadDetail?.iosFallbackNotice || "");
+          return;
         }
-
-        const fallbackUrl = photo.previewUrl || photo.downloadUrl;
-        window.open(fallbackUrl || "#", "_blank", "noopener,noreferrer");
-        setDownloadNotice(t?.downloadDetail?.iosFallbackNotice || "");
-        return;
       }
 
-      await new Promise((resolve) => window.setTimeout(resolve, 800));
+      const response = await fetch(photo.downloadUrl, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("failed to fetch download file");
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
 
       const link = document.createElement("a");
-      link.href = photo.downloadUrl;
+      link.href = blobUrl;
       link.download = photo.name || "photo.jpg";
       link.rel = "noopener noreferrer";
       document.body.appendChild(link);
       link.click();
       link.remove();
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 1500);
+    },
+    [t?.downloadDetail?.iosFallbackNotice],
+  );
+
+  const handleDownload = async (photo: Photo) => {
+    setDownloading(true);
+    setDownloadNotice("");
+    try {
+      await downloadPhotoFile(photo, true);
     } catch (error) {
       console.error(error);
       setDownloadNotice(t?.downloadDetail?.downloadFail || "");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const selectedIdSet = React.useMemo(
+    () => new Set(selectedPhotoIds),
+    [selectedPhotoIds],
+  );
+
+  const togglePhotoSelection = (photoId: string) => {
+    setSelectedPhotoIds((prev) => {
+      if (prev.includes(photoId)) {
+        return prev.filter((id) => id !== photoId);
+      }
+      return [...prev, photoId];
+    });
+  };
+
+  const cancelSelection = React.useCallback(() => {
+    setSelectMode(false);
+    setSelectedPhotoIds([]);
+  }, []);
+
+  const startSelection = React.useCallback(() => {
+    setSelectedIndex(null);
+    setSelectMode(true);
+  }, []);
+
+  const clearLongPressTimer = React.useCallback(() => {
+    if (longPressTimeoutRef.current !== null) {
+      window.clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    longPressStartRef.current = null;
+  }, []);
+
+  const handlePhotoPointerDown = (
+    photoId: string,
+    event: React.PointerEvent<HTMLImageElement>,
+  ) => {
+    if (selectMode) return;
+    if (selectedIndex !== null) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    longPressStartRef.current = { x: event.clientX, y: event.clientY };
+    longPressTimeoutRef.current = window.setTimeout(() => {
+      setSelectedIndex(null);
+      setSelectMode(true);
+      setSelectedPhotoIds((prev) =>
+        prev.includes(photoId) ? prev : [...prev, photoId],
+      );
+      suppressNextClickRef.current = true;
+      longPressTimeoutRef.current = null;
+    }, LONG_PRESS_MS);
+  };
+
+  const handlePhotoPointerMove = (
+    event: React.PointerEvent<HTMLImageElement>,
+  ) => {
+    if (!longPressStartRef.current || longPressTimeoutRef.current === null) {
+      return;
+    }
+
+    const dx = Math.abs(event.clientX - longPressStartRef.current.x);
+    const dy = Math.abs(event.clientY - longPressStartRef.current.y);
+    if (dx > 12 || dy > 12) {
+      clearLongPressTimer();
+    }
+  };
+
+  const handlePhotoClick = (photoId: string, index: number) => {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
+
+    if (selectMode) {
+      togglePhotoSelection(photoId);
+      return;
+    }
+
+    setSelectedIndex(index);
+    setScale(1);
+    setModalImageLoading(true);
+  };
+
+  const handleDownloadSelected = async () => {
+    if (selectedPhotoIds.length === 0 || batchDownloading) return;
+
+    const selectedPhotos = photos.filter(
+      (photo) => selectedIdSet.has(photo.id) && photo.downloadUrl,
+    );
+
+    if (selectedPhotos.length === 0) {
+      setDownloadNotice(
+        t?.downloadDetail?.noDownloadableSelected ||
+          (isTh
+            ? "ยังไม่ได้เลือกรูปภาพที่ดาวน์โหลดได้"
+            : "No downloadable photos selected"),
+      );
+      return;
+    }
+
+    setBatchDownloading(true);
+    setDownloadNotice("");
+
+    let successCount = 0;
+    try {
+      const ios = isIOSDevice();
+      if (ios && typeof navigator !== "undefined" && navigator.share) {
+        const toFile = async (photo: Photo): Promise<File | null> => {
+          if (!photo.downloadUrl) return null;
+
+          const response = await fetch(photo.downloadUrl, {
+            cache: "no-store",
+          });
+          if (!response.ok) return null;
+
+          const blob = await response.blob();
+          const fileName = photo.name || "photo.jpg";
+          return new File([blob], fileName, {
+            type: blob.type || "image/jpeg",
+          });
+        };
+
+        const files: File[] = [];
+        for (const photo of selectedPhotos) {
+          const file = await toFile(photo);
+          if (file) files.push(file);
+        }
+
+        const canShareFiles =
+          typeof navigator.canShare === "function" &&
+          files.length > 0 &&
+          navigator.canShare({ files: [files[0]] });
+
+        if (canShareFiles) {
+          const chunkSize = 8;
+          for (let i = 0; i < files.length; i += chunkSize) {
+            const chunk = files.slice(i, i + chunkSize);
+            if (!navigator.canShare || !navigator.canShare({ files: chunk })) {
+              continue;
+            }
+
+            await navigator.share({
+              files: chunk,
+              title: "Photos",
+            });
+            successCount += chunk.length;
+            await new Promise((resolve) => window.setTimeout(resolve, 180));
+          }
+
+          if (successCount > 0) {
+            cancelSelection();
+            return;
+          }
+
+          // Fallback when share is available but file-share is blocked
+          const fallbackUrl =
+            selectedPhotos[0]?.previewUrl || selectedPhotos[0]?.downloadUrl;
+          if (fallbackUrl) {
+            window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+          }
+          setDownloadNotice(t?.downloadDetail?.iosFallbackNotice || "");
+          return;
+        }
+      }
+
+      for (const photo of selectedPhotos) {
+        await downloadPhotoFile(photo, false);
+        successCount += 1;
+        await new Promise((resolve) => window.setTimeout(resolve, 220));
+      }
+
+      setDownloadNotice(
+        (
+          t?.downloadDetail?.batchDownloadStarted ||
+          (isTh
+            ? `เริ่มดาวน์โหลดแล้ว ${successCount} รูป`
+            : `Started downloading ${successCount} photos`)
+        ).replace("{count}", String(successCount)),
+      );
+      cancelSelection();
+    } catch (error) {
+      console.error(error);
+      setDownloadNotice(t?.downloadDetail?.downloadFail || "");
+    } finally {
+      setBatchDownloading(false);
     }
   };
 
@@ -581,6 +860,13 @@ export default function DownloadDetailClient({
     setShowIosHint(false);
   };
 
+  const selectedCountLabel = (
+    t?.downloadDetail?.selectedCount ||
+    (isTh
+      ? `เลือกแล้ว ${selectedPhotoIds.length} รูป`
+      : `${selectedPhotoIds.length} photos selected`)
+  ).replace("{count}", String(selectedPhotoIds.length));
+
   const photoColumns = React.useMemo(() => {
     const totalColumns = Math.max(1, columnCount);
     const columns: Array<Array<{ photo: Photo; index: number }>> = Array.from(
@@ -588,8 +874,22 @@ export default function DownloadDetailClient({
       () => [] as Array<{ photo: Photo; index: number }>,
     );
 
+    const columnMap = photoColumnMapRef.current;
+    const activeIds = new Set(photos.map((photo) => photo.id));
+    for (const existingId of Array.from(columnMap.keys())) {
+      if (!activeIds.has(existingId)) {
+        columnMap.delete(existingId);
+      }
+    }
+
     photos.forEach((photo: Photo, index: number) => {
-      columns[index % totalColumns].push({ photo, index });
+      let columnIndex = columnMap.get(photo.id);
+      if (columnIndex === undefined || columnIndex >= totalColumns) {
+        columnIndex = nextColumnRef.current % totalColumns;
+        nextColumnRef.current = (nextColumnRef.current + 1) % totalColumns;
+        columnMap.set(photo.id, columnIndex);
+      }
+      columns[columnIndex].push({ photo, index });
     });
 
     return columns;
@@ -631,9 +931,9 @@ export default function DownloadDetailClient({
 
   return (
     <Layout>
-      <section className="py-20 container mx-auto px-4">
+      <section className="py-20 pb-32 container mx-auto px-4">
         {/* ...existing code... */}
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between gap-3">
           <Link
             href="/download"
             className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
@@ -689,22 +989,58 @@ export default function DownloadDetailClient({
                 {column.map(
                   ({ photo, index }: { photo: Photo; index: number }) => (
                     <div key={photo.id}>
-                      <Image
-                        src={photo.previewUrl || ""}
-                        alt={photo.name}
-                        unoptimized
-                        priority={index === 0}
-                        loading={index === 0 ? "eager" : "lazy"}
-                        width={photo.width || 1200}
-                        height={photo.height || 800}
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
-                        className="w-full rounded-lg cursor-pointer hover:opacity-80 transition"
-                        onClick={() => {
-                          setSelectedIndex(index);
-                          setScale(1);
-                          setModalImageLoading(true);
-                        }}
-                      />
+                      <div className="relative">
+                        <Image
+                          src={photo.previewUrl || ""}
+                          alt={photo.name}
+                          unoptimized
+                          priority={index === 0}
+                          loading={index === 0 ? "eager" : "lazy"}
+                          width={photo.width || 1200}
+                          height={photo.height || 800}
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
+                          className={`w-full rounded-lg cursor-pointer transition ${
+                            selectedIdSet.has(photo.id)
+                              ? "ring-2 ring-primary ring-offset-2"
+                              : "hover:opacity-80"
+                          }`}
+                          style={{
+                            WebkitTouchCallout: "none",
+                            userSelect: "none",
+                          }}
+                          onPointerDown={(event) =>
+                            handlePhotoPointerDown(photo.id, event)
+                          }
+                          onPointerMove={handlePhotoPointerMove}
+                          onPointerUp={clearLongPressTimer}
+                          onPointerCancel={clearLongPressTimer}
+                          onPointerLeave={clearLongPressTimer}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            if (selectMode) return;
+                            setSelectedIndex(null);
+                            setSelectMode(true);
+                            setSelectedPhotoIds((prev) =>
+                              prev.includes(photo.id)
+                                ? prev
+                                : [...prev, photo.id],
+                            );
+                          }}
+                          onClick={() => handlePhotoClick(photo.id, index)}
+                        />
+
+                        {selectMode && (
+                          <div
+                            className={`pointer-events-none absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold ${
+                              selectedIdSet.has(photo.id)
+                                ? "border-primary bg-primary text-white"
+                                : "border-white/90 bg-black/35 text-white"
+                            }`}
+                          >
+                            {selectedIdSet.has(photo.id) ? "\u2713" : ""}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ),
                 )}
@@ -723,6 +1059,59 @@ export default function DownloadDetailClient({
             </p>
           </div>
         )}
+
+        {mounted &&
+          !selectMode &&
+          !loading &&
+          photos.length > 0 &&
+          isLgUp &&
+          createPortal(
+            <button
+              type="button"
+              onClick={startSelection}
+              className="fixed bottom-3 left-1/2 z-80 min-h-11 -translate-x-1/2 rounded-full border  bg-primary px-5 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(0,0,0,0.14)] backdrop-blur"
+            >
+              {t?.downloadDetail?.multiSelect || "Multi-select"}
+            </button>,
+            document.body,
+          )}
+
+        {mounted &&
+          selectMode &&
+          !loading &&
+          photos.length > 0 &&
+          createPortal(
+            <div className="fixed bottom-3 left-1/2 z-80 w-[calc(100%-1rem)] max-w-lg -translate-x-1/2 rounded-2xl border border-[#e3d2bf] bg-white/95 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.14)] backdrop-blur">
+              <div className="mb-2 text-center text-sm text-[#4d3a2e]">
+                {selectedCountLabel}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadSelected}
+                  disabled={batchDownloading || selectedPhotoIds.length === 0}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  <Download size={16} />
+                  {batchDownloading
+                    ? t?.downloadDetail?.downloadingBatch ||
+                      t?.downloadDetail?.downloading ||
+                      "Downloading..."
+                    : t?.downloadDetail?.downloadAll || "Download all"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={cancelSelection}
+                  disabled={batchDownloading}
+                  className="min-h-11 rounded-lg border border-[#d7c4af] bg-white px-3 py-2 text-sm font-semibold text-[#4d3a2e] disabled:opacity-60"
+                >
+                  {t?.common?.cancel || "Cancel"}
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )}
 
         {mounted &&
           selectedIndex !== null &&
