@@ -35,14 +35,18 @@ const extractTrailingNumber = (name: string): number | null => {
   return Number(match[1]);
 };
 
-const compareFileNameDesc = (a: Photo, b: Photo): number => {
+const compareByCreatedTimeDesc = (a: Photo, b: Photo): number => {
+  if (a.createdTime && b.createdTime) {
+    return b.createdTime.localeCompare(a.createdTime);
+  }
+  if (a.createdTime) return -1;
+  if (b.createdTime) return 1;
+  // fallback: sort by trailing number descending
   const numberA = extractTrailingNumber(a.name);
   const numberB = extractTrailingNumber(b.name);
-
   if (numberA !== null && numberB !== null && numberA !== numberB) {
     return numberB - numberA;
   }
-
   return b.name.localeCompare(a.name, undefined, {
     numeric: true,
     sensitivity: "base",
@@ -222,7 +226,7 @@ export default function DownloadDetailClient({
         if (Array.isArray(data.files)) {
           const images = data.files
             .filter((item: Photo) => item.type === "image")
-            .sort(compareFileNameDesc);
+            .sort(compareByCreatedTimeDesc);
 
           setPhotos((current) => {
             if (!isLoadMore) {
@@ -233,7 +237,9 @@ export default function DownloadDetailClient({
             const appended = images.filter(
               (item: Photo) => !existingIds.has(item.id),
             );
-            return appended.length > 0 ? [...current, ...appended] : current;
+            if (appended.length === 0) return current;
+            // Re-sort combined list so any newly discovered photo ends up at top
+            return [...current, ...appended].sort(compareByCreatedTimeDesc);
           });
           const nextToken = data.nextPageToken || null;
           setNextPageToken(nextToken);
@@ -264,7 +270,7 @@ export default function DownloadDetailClient({
 
     autoRefreshInFlightRef.current = true;
     try {
-      const query = new URLSearchParams({ pageSize: String(PAGE_SIZE) });
+      const query = new URLSearchParams({ pageSize: "200" });
       const res = await fetch(`/api/photos/${folderId}?${query.toString()}`);
       if (!res.ok) return;
 
@@ -275,7 +281,7 @@ export default function DownloadDetailClient({
 
       const images = data.files
         .filter((item: Photo) => item.type === "image")
-        .sort(compareFileNameDesc);
+        .sort(compareByCreatedTimeDesc);
 
       setPhotos((current) => {
         if (current.length === 0) return current;
@@ -372,9 +378,10 @@ export default function DownloadDetailClient({
 
     const startFallbackPolling = () => {
       if (fallbackIntervalRef.current !== null) return;
+      // Fallback poll every 20s — SSE handles real-time delivery, this is only for SSE-down scenarios
       fallbackIntervalRef.current = window.setInterval(() => {
         refreshLatestPhotos();
-      }, 5000);
+      }, 20000);
     };
 
     const closeEventSource = () => {
@@ -414,8 +421,18 @@ export default function DownloadDetailClient({
 
       source.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data) as { type?: string };
-          if (payload.type === "update" || payload.type === "ready") {
+          const payload = JSON.parse(event.data) as {
+            type?: string;
+            photo?: Photo;
+          };
+          if (payload.type === "new_photo" && payload.photo) {
+            // Photo data arrives inline — prepend immediately, no extra fetch needed
+            setPhotos((current) => {
+              const exists = current.some((p) => p.id === payload.photo!.id);
+              if (exists) return current;
+              return [payload.photo!, ...current];
+            });
+          } else if (payload.type === "ready" || payload.type === "update") {
             refreshLatestPhotos();
           }
         } catch {
@@ -978,17 +995,16 @@ export default function DownloadDetailClient({
         >
           {photos.map((photo: Photo, index: number) => (
             <div key={photo.id}>
-              <div className="relative">
+              <div className="relative aspect-square overflow-hidden rounded-lg">
                 <Image
                   src={photo.previewUrl || ""}
                   alt={photo.name}
                   unoptimized
+                  fill
                   priority={index === 0}
                   loading={index === 0 ? "eager" : "lazy"}
-                  width={photo.width || 1200}
-                  height={photo.height || 800}
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
-                  className={`w-full rounded-lg cursor-pointer transition ${
+                  className={`object-cover cursor-pointer transition ${
                     selectedIdSet.has(photo.id)
                       ? "ring-2 ring-primary ring-offset-2"
                       : "hover:opacity-80"

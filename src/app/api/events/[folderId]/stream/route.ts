@@ -30,8 +30,12 @@ export async function GET(
         }
       };
 
-      const unsubscribe = subscribeEventUpdates(safeFolderId, (version) => {
-        send({ type: "update", version });
+      const unsubscribe = subscribeEventUpdates(safeFolderId, (version, photo) => {
+        if (photo) {
+          send({ type: "new_photo", version, photo });
+        } else {
+          send({ type: "update", version });
+        }
       });
 
       send({ type: "ready", version: getEventVersion(safeFolderId) });

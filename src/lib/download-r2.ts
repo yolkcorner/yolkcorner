@@ -92,19 +92,27 @@ export async function listDownloadPhotos(
   const prefix = getEventPrefix(safeFolderId);
   const result = await listR2ObjectsPaginated(prefix, pageSize, pageToken);
 
-  const files = result.keys
-    .filter(isImageKey)
-    .map((key) => {
-      const encodedKey = encodeURIComponent(key);
-      const name = path.posix.basename(key);
+  const files = result.objects
+    .filter((obj) => isImageKey(obj.key))
+    .map((obj) => {
+      const encodedKey = encodeURIComponent(obj.key);
+      const name = path.posix.basename(obj.key);
       return {
-        key,
+        key: obj.key,
         name,
-        createdTime: null,
+        createdTime: obj.lastModified ? obj.lastModified.toISOString() : null,
         previewUrl: `/api/photos/${safeFolderId}?preview=1&fileId=${encodedKey}`,
         downloadUrl: `/api/photos/${safeFolderId}?download=1&fileId=${encodedKey}`,
       };
     });
+
+  // Sort by upload time descending so newest photos appear first
+  files.sort((a, b) => {
+    if (a.createdTime && b.createdTime) {
+      return b.createdTime.localeCompare(a.createdTime);
+    }
+    return 0;
+  });
 
   return {
     folderName: toEventName(safeFolderId),

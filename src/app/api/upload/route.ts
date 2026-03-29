@@ -8,7 +8,6 @@ import {
 import { DOWNLOAD_EVENTS_PREFIX, normalizeEventId } from '@/lib/download-r2';
 import { publishEventUpdate } from '@/lib/event-updates';
 import path from 'node:path';
-
 export const runtime = 'nodejs';
 
 const allowedMime = new Set([
@@ -107,7 +106,15 @@ export async function POST(req: NextRequest) {
     const key = `${DOWNLOAD_EVENTS_PREFIX}/${eventId}/${safeFileName}`;
     const buffer = Buffer.from(await file.arrayBuffer());
     const url = await uploadToR2(buffer, key, file.type);
-    publishEventUpdate(eventId);
+
+    const encodedKey = encodeURIComponent(key);
+    publishEventUpdate(eventId, {
+      id: key,
+      name: safeFileName,
+      previewUrl: `/api/photos/${eventId}?preview=1&fileId=${encodedKey}`,
+      downloadUrl: `/api/photos/${eventId}?download=1&fileId=${encodedKey}`,
+      createdTime: new Date().toISOString(),
+    });
 
     return NextResponse.json({
       ok: true,

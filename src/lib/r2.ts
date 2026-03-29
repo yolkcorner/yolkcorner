@@ -58,6 +58,7 @@ export function r2PublicUrl(key: string) {
 
 export type R2ListResult = {
   keys: string[];
+  objects: { key: string; lastModified: Date | null }[];
   nextContinuationToken: string | null;
 };
 
@@ -82,9 +83,13 @@ export async function listR2ObjectsPaginated(
   );
 
   const keys = (res.Contents || []).map((obj) => obj.Key || "").filter(Boolean);
+  const objects = (res.Contents || [])
+    .filter((obj) => !!obj.Key)
+    .map((obj) => ({ key: obj.Key as string, lastModified: obj.LastModified ?? null }));
 
   return {
     keys,
+    objects,
     nextContinuationToken: res.NextContinuationToken || null,
   };
 }
