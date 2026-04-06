@@ -16,7 +16,12 @@ interface EnvUserRecord extends User {
   password?: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change_me';
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  return 'dev-only-secret-do-not-use-in-production';
+})();
 const TOKEN_EXP = '7d';
 
 function normalizeIdentifier(value: string): string {
@@ -92,7 +97,12 @@ const fallbackUser: UserRecord = {
     (typeof process.env.ADMIN_PASSWORD === 'string' &&
     process.env.ADMIN_PASSWORD.trim()
       ? bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10)
-      : bcrypt.hashSync('password', 10)),
+      : (() => {
+          if (process.env.NODE_ENV === 'production') {
+            throw new Error('ADMIN_PASSWORD_HASH or ADMIN_PASSWORD env var is required in production');
+          }
+          return bcrypt.hashSync('password', 10);
+        })()),
   role: 'admin',
 };
 

@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readSiteContent, writeSiteContent } from '@/lib/site-content-server';
+import { verifyToken } from '@/lib/auth';
+
+const requireAdmin = (req: NextRequest) => {
+  const token = req.cookies.get('token')?.value || '';
+  const user = token ? verifyToken(token) : null;
+  return user?.role === 'admin';
+};
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ albumId: string }> }
 ) {
+  if (!requireAdmin(req)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
   try {
     const { albumId } = await params;
     const { imageUrl } = await req.json();
@@ -49,6 +60,10 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ albumId: string }> }
 ) {
+  if (!requireAdmin(req)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
   try {
     const { albumId } = await params;
     const { imageUrl } = await req.json();

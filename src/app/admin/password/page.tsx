@@ -67,6 +67,14 @@ export default function AdminPasswordPage() {
   const [photoSearch, setPhotoSearch] = useState("");
   const [photosLoading, setPhotosLoading] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [renamingAlbum, setRenamingAlbum] = useState(false);
+  const [movingPhotos, setMovingPhotos] = useState(false);
+  const [renameAlbumName, setRenameAlbumName] = useState("");
+  const [moveTargetAlbumId, setMoveTargetAlbumId] = useState("");
+  const [moveScope, setMoveScope] = useState<"all" | "selected">("all");
+  const [selectedMovePhotoIds, setSelectedMovePhotoIds] = useState<string[]>(
+    [],
+  );
   const [message, setMessage] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -166,6 +174,19 @@ export default function AdminPasswordPage() {
     return photo.name.toLowerCase().includes(query);
   });
 
+  const destinationAlbums = albums.filter(
+    (album) => album.id !== managingAlbum?.id,
+  );
+
+  useEffect(() => {
+    setSelectedMovePhotoIds((prev) => {
+      if (prev.length === 0) return prev;
+      const validIds = new Set(photos.map((photo) => photo.id));
+      const next = prev.filter((id) => validIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [photos]);
+
   const handleAlbumClick = (album: DownloadAlbum) => {
     setSelectedAlbum(album);
     setShowModal(true);
@@ -179,10 +200,153 @@ export default function AdminPasswordPage() {
   const handleOpenManagePhotos = async (album: DownloadAlbum) => {
     setOpenMenuAlbumId(null);
     setManagingAlbum(album);
+    setRenameAlbumName(album.name);
+    setMoveTargetAlbumId("");
+    setMoveScope("all");
+    setSelectedMovePhotoIds([]);
     setPhotoSearch("");
     setFailedPhotoIds([]);
     setMessage("");
     await loadAlbumPhotos(album.id);
+  };
+
+  const handleRenameAlbum = async () => {
+    if (!managingAlbum || renamingAlbum) return;
+
+    const nextName = renameAlbumName.trim();
+    if (!nextName) {
+      setMessage(
+        isTh ? "กรุณาระบุชื่ออัลบัมใหม่" : "Please enter a new album name",
+      );
+      return;
+    }
+
+    setRenamingAlbum(true);
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/photos/${managingAlbum.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "rename-album",
+          targetAlbumName: nextName,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to rename album");
+      }
+
+      const newAlbumId = String(data?.newAlbumId || "").trim();
+      if (!newAlbumId) {
+        throw new Error("Missing new album id");
+      }
+
+      const activePasswordMap = getActivePasswordMap(content, albums);
+      const currentPassword = activePasswordMap[managingAlbum.id];
+      const nextPasswordMap = { ...activePasswordMap };
+      delete nextPasswordMap[managingAlbum.id];
+      if (currentPassword) {
+        nextPasswordMap[newAlbumId] = currentPassword;
+      }
+
+      const nextContent = {
+        ...content,
+        downloadPasswords: nextPasswordMap,
+      };
+
+      setContent(nextContent);
+      await fetch("/api/content", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: nextContent }),
+      });
+
+      await refreshData();
+
+      const updatedAlbum: DownloadAlbum = {
+        ...managingAlbum,
+        id: newAlbumId,
+        name: nextName,
+      };
+      setManagingAlbum(updatedAlbum);
+      await loadAlbumPhotos(newAlbumId);
+
+      setMessage(
+        isTh ? "เปลี่ยนชื่ออัลบัมเรียบร้อยแล้ว" : "Album renamed successfully",
+      );
+    } catch (error) {
+      console.error("Failed to rename album:", error);
+      setMessage(
+        isTh ? "เปลี่ยนชื่ออัลบัมไม่สำเร็จ" : "Failed to rename album",
+      );
+    } finally {
+      setRenamingAlbum(false);
+    }
+  };
+
+  const toggleMovePhotoSelection = (photoId: string) => {
+    setSelectedMovePhotoIds((prev) =>
+      prev.includes(photoId)
+        ? prev.filter((id) => id !== photoId)
+        : [...prev, photoId],
+    );
+  };
+
+  const handleMovePhotos = async () => {
+    if (!managingAlbum || movingPhotos) return;
+
+    if (!moveTargetAlbumId) {
+      setMessage(
+        isTh ? "กรุณาเลือกอัลบัมปลายทาง" : "Please choose a destination album",
+      );
+      return;
+    }
+
+    if (moveScope === "selected" && selectedMovePhotoIds.length === 0) {
+      setMessage(
+        isTh ? "กรุณาเลือกรูปที่ต้องการย้าย" : "Please select photos to move",
+      );
+      return;
+    }
+
+    setMovingPhotos(true);
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/photos/${managingAlbum.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "move-photos",
+          targetAlbumId: moveTargetAlbumId,
+          moveAll: moveScope === "all",
+          fileIds: moveScope === "selected" ? selectedMovePhotoIds : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to move photos");
+      }
+
+      await refreshData();
+      await loadAlbumPhotos(managingAlbum.id);
+      setSelectedMovePhotoIds([]);
+
+      setMessage(
+        isTh
+          ? `ย้ายรูปเรียบร้อยแล้ว ${data?.moved || 0} รูป`
+          : `Moved ${data?.moved || 0} photos successfully`,
+      );
+    } catch (error) {
+      console.error("Failed to move photos:", error);
+      setMessage(isTh ? "ย้ายรูปไม่สำเร็จ" : "Failed to move photos");
+    } finally {
+      setMovingPhotos(false);
+    }
   };
 
   const handleDeleteAlbum = async (album: DownloadAlbum) => {
@@ -336,16 +500,28 @@ export default function AdminPasswordPage() {
             return (
               <div
                 key={album.id}
-                className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/80 p-4 shadow-[0_12px_30px_rgba(120,58,12,0.12)] backdrop-blur"
+                className="relative cursor-pointer overflow-hidden rounded-2xl border border-white/70 bg-white/80 p-4 shadow-[0_12px_30px_rgba(120,58,12,0.12)] backdrop-blur transition hover:bg-white/90"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  void handleOpenManagePhotos(album);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    void handleOpenManagePhotos(album);
+                  }
+                }}
               >
                 <div className="absolute right-3 top-3 z-20">
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={(event) => {
+                      event.stopPropagation();
                       setOpenMenuAlbumId((prev) =>
                         prev === album.id ? null : album.id,
-                      )
-                    }
+                      );
+                    }}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#e5d3be] bg-[#fff4e8] text-[#5b3f2c] transition hover:bg-[#ffe6cf]"
                     aria-label={
                       isTh ? "เปิดเมนูการ์ดอัลบัม" : "Open album menu"
@@ -358,7 +534,8 @@ export default function AdminPasswordPage() {
                     <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-[#ead6bf] bg-white shadow-[0_16px_34px_rgba(120,58,12,0.18)]">
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(event) => {
+                          event.stopPropagation();
                           setOpenMenuAlbumId(null);
                           handleAlbumClick(album);
                         }}
@@ -369,7 +546,10 @@ export default function AdminPasswordPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleOpenManagePhotos(album)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleOpenManagePhotos(album);
+                        }}
                         className="flex w-full items-center gap-2 border-y border-[#f1e4d5] px-3 py-2.5 text-left text-sm text-[#5b3f2c] transition hover:bg-[#fff3e5]"
                       >
                         <Images className="h-4 w-4" />
@@ -377,7 +557,8 @@ export default function AdminPasswordPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(event) => {
+                          event.stopPropagation();
                           setOpenMenuAlbumId(null);
                           setConfirmState({ type: "delete-album", album });
                         }}
@@ -440,6 +621,7 @@ export default function AdminPasswordPage() {
               onClick={() => {
                 setManagingAlbum(null);
                 setPhotos([]);
+                setSelectedMovePhotoIds([]);
               }}
               className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e3d2bf] bg-[#fff4e8] text-[#5b3f2c] transition hover:bg-[#ffe6cf]"
               aria-label={isTh ? "ปิดหน้าจัดการรูป" : "Close photo manager"}
@@ -457,6 +639,105 @@ export default function AdminPasswordPage() {
                   ? `จำนวนรูปทั้งหมด ${photos.length} รูป | พบ ${filteredPhotos.length} รูป`
                   : `${photos.length} photos in this album | ${filteredPhotos.length} matched`}
               </p>
+            </div>
+
+            <div className="mb-5 grid gap-3 rounded-2xl border border-[#ead7c2] bg-[#fff7ee] p-3 md:grid-cols-2">
+              <div className="space-y-2 rounded-xl border border-[#efddca] bg-white/80 p-3">
+                <p className="text-xs font-semibold tracking-[0.08em] text-[#8a6347] uppercase">
+                  {isTh ? "เปลี่ยนชื่ออัลบัม" : "Rename album"}
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={renameAlbumName}
+                    onChange={(event) => setRenameAlbumName(event.target.value)}
+                    placeholder={isTh ? "ชื่ออัลบัมใหม่" : "New album name"}
+                    className="h-10 w-full rounded-xl border border-[#e3d2bf] bg-white px-3 text-sm text-[#3f2b1d] outline-none transition focus:border-[#ff7a2e] focus:ring-2 focus:ring-[#ff7a2e]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRenameAlbum}
+                    disabled={renamingAlbum || !renameAlbumName.trim()}
+                    className="h-10 shrink-0 rounded-xl bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {renamingAlbum
+                      ? isTh
+                        ? "กำลังบันทึก..."
+                        : "Saving..."
+                      : isTh
+                        ? "บันทึก"
+                        : "Save"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-[#efddca] bg-white/80 p-3">
+                <p className="text-xs font-semibold tracking-[0.08em] text-[#8a6347] uppercase">
+                  {isTh
+                    ? "ย้ายรูปไปอัลบัมอื่น"
+                    : "Move photos to another album"}
+                </p>
+
+                <select
+                  value={moveTargetAlbumId}
+                  onChange={(event) => setMoveTargetAlbumId(event.target.value)}
+                  className="h-10 w-full rounded-xl border border-[#e3d2bf] bg-white px-3 text-sm text-[#3f2b1d] outline-none transition focus:border-[#ff7a2e] focus:ring-2 focus:ring-[#ff7a2e]/20"
+                >
+                  <option value="">
+                    {isTh ? "เลือกอัลบัมปลายทาง" : "Select destination album"}
+                  </option>
+                  {destinationAlbums.map((album) => (
+                    <option key={album.id} value={album.id}>
+                      {album.name}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex flex-wrap gap-3 text-sm text-[#5b3f2c]">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="moveScope"
+                      checked={moveScope === "all"}
+                      onChange={() => setMoveScope("all")}
+                    />
+                    <span>{isTh ? "ย้ายทั้งหมด" : "Move all"}</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="moveScope"
+                      checked={moveScope === "selected"}
+                      onChange={() => setMoveScope("selected")}
+                    />
+                    <span>
+                      {isTh
+                        ? `ย้ายเฉพาะที่เลือก (${selectedMovePhotoIds.length})`
+                        : `Move selected (${selectedMovePhotoIds.length})`}
+                    </span>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleMovePhotos}
+                  disabled={
+                    movingPhotos ||
+                    !moveTargetAlbumId ||
+                    (moveScope === "selected" &&
+                      selectedMovePhotoIds.length === 0)
+                  }
+                  className="h-10 w-full rounded-xl bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {movingPhotos
+                    ? isTh
+                      ? "กำลังย้ายรูป..."
+                      : "Moving photos..."
+                    : isTh
+                      ? "ย้ายรูป"
+                      : "Move photos"}
+                </button>
+              </div>
             </div>
 
             <div className="mb-5 rounded-2xl border border-[#ead7c2] bg-[#fff7ee] p-3">
@@ -499,8 +780,17 @@ export default function AdminPasswordPage() {
                   {filteredPhotos.map((photo) => (
                     <div
                       key={photo.id}
-                      className="overflow-hidden rounded-xl border border-[#efddca] bg-[#fff7ee]"
+                      className="relative overflow-hidden rounded-xl border border-[#efddca] bg-[#fff7ee]"
                     >
+                      <label className="absolute left-2 top-2 z-10 inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-white/90 bg-black/45">
+                        <input
+                          type="checkbox"
+                          checked={selectedMovePhotoIds.includes(photo.id)}
+                          onChange={() => toggleMovePhotoSelection(photo.id)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                      </label>
+
                       <Image
                         src={
                           failedPhotoIds.includes(photo.id)

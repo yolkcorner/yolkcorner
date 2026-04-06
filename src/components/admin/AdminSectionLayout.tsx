@@ -17,7 +17,7 @@ export default function AdminSectionLayout({
       <div className="pointer-events-none absolute -left-24 top-20 h-56 w-56 rounded-full bg-[#ff8a3d]/30 blur-3xl" />
       <div className="pointer-events-none absolute -right-20 bottom-12 h-64 w-64 rounded-full bg-[#ffd18f]/35 blur-3xl" />
 
-      <div className="relative mx-auto max-w-7xl md:flex md:gap-6">
+      <div className="relative mx-auto max-w-7xl md:flex md:items-start md:gap-6">
         <AdminDashboardNav />
 
         <main className="mt-4 flex-1 space-y-6 md:mt-0">

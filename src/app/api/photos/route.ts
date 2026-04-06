@@ -39,8 +39,6 @@ export async function GET() {
     return NextResponse.json(
       {
         error: "Failed to fetch export folder",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: (error as any)?.message || String(error),
       },
       { status: 500 },
     );

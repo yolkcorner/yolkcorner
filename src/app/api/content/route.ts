@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readSiteContent, writeSiteContent } from "@/lib/site-content-server";
 import { SiteContent } from "@/lib/site-content-types";
 import { extractR2Key, deleteMultipleFromR2, listR2Folder } from "@/lib/r2";
+import { verifyToken } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -59,14 +60,6 @@ const collectR2Keys = (content: SiteContent) => {
 const collectAlbumIds = (content: SiteContent) =>
   new Set(content.portfolio.albums.map((album) => album.id));
 
-const getErrorDetails = (error: unknown) => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
-};
-
 const cleanupRemovedR2Assets = async (
   previousContent: SiteContent,
   nextContent: SiteContent,
@@ -107,7 +100,6 @@ export async function GET() {
       {
         code: "content_read_failed",
         error: "Failed to load content",
-        details: getErrorDetails(error),
       },
       { status: 500 },
     );
@@ -115,6 +107,12 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const token = req.cookies.get('token')?.value || '';
+  const user = verifyToken(token);
+  if (!user || user.role !== 'admin') {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
   try {
     const { content } = (await req.json()) as { content?: SiteContent };
     if (!content) {
@@ -144,7 +142,6 @@ export async function PUT(req: NextRequest) {
       {
         code: "content_write_failed",
         error: "Failed to save content",
-        details: getErrorDetails(error),
       },
       { status: 500 },
     );

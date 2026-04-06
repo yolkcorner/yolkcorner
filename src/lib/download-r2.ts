@@ -15,7 +15,21 @@ export type DownloadPhoto = {
   downloadUrl: string;
 };
 
+const buildPreviewApiUrl = (folderId: string, fileKey: string) =>
+  `/api/photos/${folderId}?preview=1&fileId=${encodeURIComponent(fileKey)}`;
+
+const buildDownloadApiUrl = (folderId: string, fileKey: string) =>
+  `/api/photos/${folderId}?download=1&fileId=${encodeURIComponent(fileKey)}`;
+
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
+const LIST_CACHE_TTL_MS = 0;
+
+type CachedFolderList = {
+  timestamp: number;
+  objects: { key: string; lastModified: Date | null }[];
+};
+
+const folderListCache = new Map<string, CachedFolderList>();
 
 const normalizePrefix = (value: string) => value.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
 
@@ -49,6 +63,26 @@ const isImageKey = (key: string) => {
   return IMAGE_EXTENSIONS.has(ext);
 };
 
+const listFolderObjectsCached = async (prefix: string) => {
+  const now = Date.now();
+  const cached = folderListCache.get(prefix);
+  if (cached && now - cached.timestamp < LIST_CACHE_TTL_MS) {
+    return cached.objects;
+  }
+
+  const objects: { key: string; lastModified: Date | null }[] = [];
+  let token: string | undefined;
+
+  do {
+    const result = await listR2ObjectsPaginated(prefix, 1000, token);
+    objects.push(...result.objects.filter((obj) => isImageKey(obj.key)));
+    token = result.nextContinuationToken || undefined;
+  } while (token);
+
+  folderListCache.set(prefix, { timestamp: now, objects });
+  return objects;
+};
+
 export async function listDownloadFolders(): Promise<DownloadFolder[]> {
   const folders: DownloadFolder[] = [];
   let token: string | undefined;
@@ -67,7 +101,7 @@ export async function listDownloadFolders(): Promise<DownloadFolder[]> {
       folders.push({
         id: eventId,
         name: toEventName(eventId),
-        coverUrl: coverKey ? r2PublicUrl(coverKey) : null,
+        coverUrl: coverKey ? buildPreviewApiUrl(eventId, coverKey) : null,
       });
     }
 
@@ -90,34 +124,30 @@ export async function listDownloadPhotos(
 ): Promise<{ folderName: string; files: DownloadPhoto[]; nextPageToken: string | null }> {
   const safeFolderId = sanitizeEventSegment(folderId);
   const prefix = getEventPrefix(safeFolderId);
-  const result = await listR2ObjectsPaginated(prefix, pageSize, pageToken);
+  const allObjects = await listFolderObjectsCached(prefix);
 
-  const files = result.objects
-    .filter((obj) => isImageKey(obj.key))
+  const offset = Math.max(0, Number.parseInt(pageToken || "0", 10) || 0);
+  const pageObjects = allObjects.slice(offset, offset + pageSize);
+
+  const files = pageObjects
     .map((obj) => {
-      const encodedKey = encodeURIComponent(obj.key);
       const name = path.posix.basename(obj.key);
       return {
         key: obj.key,
         name,
         createdTime: obj.lastModified ? obj.lastModified.toISOString() : null,
-        previewUrl: `/api/photos/${safeFolderId}?preview=1&fileId=${encodedKey}`,
-        downloadUrl: `/api/photos/${safeFolderId}?download=1&fileId=${encodedKey}`,
+        previewUrl: buildPreviewApiUrl(safeFolderId, obj.key),
+        downloadUrl: buildDownloadApiUrl(safeFolderId, obj.key),
       };
     });
 
-  // Sort by upload time descending so newest photos appear first
-  files.sort((a, b) => {
-    if (a.createdTime && b.createdTime) {
-      return b.createdTime.localeCompare(a.createdTime);
-    }
-    return 0;
-  });
+  const nextOffset = offset + pageSize;
+  const nextPageToken = nextOffset < allObjects.length ? String(nextOffset) : null;
 
   return {
     folderName: toEventName(safeFolderId),
     files,
-    nextPageToken: result.nextContinuationToken,
+    nextPageToken,
   };
 }
 

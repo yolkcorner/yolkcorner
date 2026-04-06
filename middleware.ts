@@ -5,7 +5,7 @@ import { jwtVerify } from 'jose';
 
 const ADMIN_PATH = '/admin';
 const ADMIN_LOGIN_PATH = '/admin/login';
-const JWT_SECRET = process.env.JWT_SECRET || 'change_me';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret-do-not-use-in-production';
 
 type JwtUser = {
   role?: string;

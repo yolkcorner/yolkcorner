@@ -248,7 +248,7 @@ export default function AdminDashboardNav() {
         </div>
       )}
 
-      <aside className="hidden rounded-3xl border border-white/60 bg-white/80 p-3 shadow-[0_16px_50px_rgba(120,58,12,0.14)] backdrop-blur-xl md:sticky md:top-6 md:flex md:h-[calc(100vh-3rem)] md:w-80 md:flex-col">
+      <aside className="hidden rounded-3xl border border-white/60 bg-white/80 p-3 shadow-[0_16px_50px_rgba(120,58,12,0.14)] backdrop-blur-xl md:sticky md:top-0 md:flex md:h-[calc(100vh-3rem)] md:w-80 md:flex-col">
         <div className="mb-4 flex items-center gap-2">
           <Link href="/admin" className="inline-flex items-center gap-2">
             <Image

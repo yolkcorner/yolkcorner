@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readSiteContent, writeSiteContent } from '@/lib/site-content-server';
+import { verifyToken } from '@/lib/auth';
 
-export async function GET() {
+const requireAdmin = (req: NextRequest) => {
+  const token = req.cookies.get('token')?.value || '';
+  const user = token ? verifyToken(token) : null;
+  return user?.role === 'admin';
+};
+
+export async function GET(req: NextRequest) {
   const content = await readSiteContent();
   return NextResponse.json({ albums: content.portfolio.albums });
 }
 
 export async function POST(req: NextRequest) {
+  if (!requireAdmin(req)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
   try {
     const { name, coverUrl, categoryId, topText } = await req.json();
 
