@@ -70,8 +70,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let formData: FormData;
   try {
-    const formData = await req.formData();
+    formData = await req.formData();
+  } catch {
+    return NextResponse.json({ error: 'no file provided' }, { status: 400 });
+  }
+
+  try {
     const file = formData.get('file');
     const filenameRaw = formData.get('filename');
     const eventRaw = formData.get('event');
