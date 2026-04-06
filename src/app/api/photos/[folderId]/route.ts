@@ -347,8 +347,8 @@ export async function PATCH(
 
       const candidateKeys = moveAll ? await listR2Folder(sourcePrefix) : fileIds;
       const sourceKeys = candidateKeys
-        .map((item) => decodeURIComponent(item))
-        .filter((item) => item.startsWith(sourcePrefix));
+        .map((item: string) => decodeURIComponent(item))
+        .filter((item: string) => item.startsWith(sourcePrefix));
 
       if (!sourceKeys.length) {
         return NextResponse.json(
