@@ -79,9 +79,20 @@ export default function DownloadDetailClient({
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
   const [lineSentCount, setLineSentCount] = React.useState(0);
 
-  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
+
+  // Callback ref: fires the moment the <video> element mounts,
+  // which avoids the race condition caused by conditional rendering +
+  // useEffect timing.
+  const videoCallbackRef = React.useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    if (el && streamRef.current) {
+      el.srcObject = streamRef.current;
+      el.play().catch(console.error);
+    }
+  }, []);
 
   const stopCamera = React.useCallback(() => {
     if (streamRef.current) {
@@ -100,7 +111,9 @@ export default function DownloadDetailClient({
     setErrorMsg("");
 
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setErrorMsg("เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง กรุณาใช้ Chrome หรือ Safari");
+      setErrorMsg(
+        "เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง กรุณาใช้ Chrome หรือ Safari",
+      );
       return;
     }
 
@@ -129,12 +142,8 @@ export default function DownloadDetailClient({
     setStep("camera"); // change step only after stream is ready
   }, []);
 
-  // Attach stream to video element when camera step becomes active
+  // Cleanup stream when leaving camera step
   React.useEffect(() => {
-    if (step === "camera" && streamRef.current && videoRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(console.error);
-    }
     return () => {
       if (step !== "camera") stopCamera();
     };
@@ -324,7 +333,7 @@ export default function DownloadDetailClient({
           {/* Face oval guide */}
           <div className="relative">
             <video
-              ref={videoRef}
+              ref={videoCallbackRef}
               autoPlay
               playsInline
               muted
