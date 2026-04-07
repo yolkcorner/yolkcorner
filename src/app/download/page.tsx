@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import DownloadListClient from "./DownloadListClient";
 import { readSiteContent } from "@/lib/site-content-server";
 import { listDownloadFolders } from "@/lib/download-r2";
@@ -90,32 +90,9 @@ export default async function DownloadPage() {
     itemListElement: folders.map((folder, index) => ({
       "@type": "ListItem",
       position: index + 1,
-      url: `${siteUrl}/download/${folder.id}`,
       name: folder.name,
+      url: `${siteUrl}/download/${folder.id}`,
     })),
-  };
-
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: "How do I open an event gallery?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Select an event card to open its gallery and view all available photos.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Can I download photos on mobile?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Yes. The download page supports mobile devices, including iOS save flow and touch-friendly navigation.",
-        },
-      },
-    ],
   };
 
   return (
@@ -127,10 +104,6 @@ export default async function DownloadPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
       <DownloadListClient />
     </>

@@ -7,6 +7,12 @@ import {
 } from '@/lib/r2';
 import { DOWNLOAD_EVENTS_PREFIX, normalizeEventId } from '@/lib/download-r2';
 import { publishEventUpdate } from '@/lib/event-updates';
+import {
+  ensureCollection,
+  getCollectionId,
+  indexFacesInImage,
+  isRekognitionConfigured,
+} from '@/lib/rekognition';
 import path from 'node:path';
 export const runtime = 'nodejs';
 
@@ -112,6 +118,15 @@ export async function POST(req: NextRequest) {
     const key = `${DOWNLOAD_EVENTS_PREFIX}/${eventId}/${safeFileName}`;
     const buffer = Buffer.from(await file.arrayBuffer());
     const url = await uploadToR2(buffer, key, file.type);
+
+    // Auto-index face in Rekognition (non-blocking — upload succeeds even if this fails)
+    if (isRekognitionConfigured()) {
+      const collectionId = getCollectionId(eventId);
+      const externalImageId = Buffer.from(key).toString('base64url').slice(0, 255);
+      ensureCollection(collectionId)
+        .then(() => indexFacesInImage(collectionId, new Uint8Array(buffer), externalImageId))
+        .catch((err) => console.error('[upload] auto-index error:', err));
+    }
 
     const encodedKey = encodeURIComponent(key);
     publishEventUpdate(eventId, {
