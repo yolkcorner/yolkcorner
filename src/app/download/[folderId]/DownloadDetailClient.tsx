@@ -91,24 +91,42 @@ export default function DownloadDetailClient({
   }, []);
 
   // Call getUserMedia directly (preserves user-gesture context on iOS/Android).
-  // Step changes to "camera" only AFTER permission is granted to avoid
+  // Step changes to "camera" only AFTER a stream is obtained to avoid
   // the double-call bug caused by the useEffect re-triggering startCamera.
+  // We try progressively simpler constraints to handle OverconstrainedError
+  // on various Android/iOS devices.
   const startCamera = React.useCallback(async () => {
     if (streamRef.current) return; // already have a stream
     setErrorMsg("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
-      streamRef.current = stream;
-      setStep("camera"); // change step after permission granted
-    } catch {
-      setErrorMsg("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้อง");
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setErrorMsg("เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง กรุณาใช้ Chrome หรือ Safari");
+      return;
     }
+
+    const attempts: MediaStreamConstraints[] = [
+      { video: { facingMode: "user" } },
+      { video: { facingMode: { ideal: "user" } } },
+      { video: true },
+    ];
+
+    let stream: MediaStream | null = null;
+    for (const constraints of attempts) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch {
+        // try next fallback
+      }
+    }
+
+    if (!stream) {
+      setErrorMsg("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้อง");
+      return;
+    }
+
+    streamRef.current = stream;
+    setStep("camera"); // change step only after stream is ready
   }, []);
 
   // Attach stream to video element when camera step becomes active
