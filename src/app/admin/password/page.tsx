@@ -8,6 +8,7 @@ import {
   EllipsisVertical,
   Images,
   RefreshCw,
+  ScanFace,
   Search,
   Trash2,
   X,
@@ -50,6 +51,7 @@ export default function AdminPasswordPage() {
   const [renameAlbumName, setRenameAlbumName] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [reindexingAlbumId, setReindexingAlbumId] = useState<string | null>(null);
 
   const loadAlbumPhotos = async (albumId: string) => {
     setPhotosLoading(true);
@@ -157,6 +159,31 @@ export default function AdminPasswordPage() {
     }
   };
 
+  const handleReindex = async (album: DownloadAlbum) => {
+    setOpenMenuAlbumId(null);
+    setReindexingAlbumId(album.id);
+    setMessage("");
+    try {
+      const res = await fetch("/api/face/index", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: album.id, reset: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to index");
+      setMessage(
+        isTh
+          ? `Re-index สำเร็จ: ${data.indexed ?? 0} รูป (ล้มเหลว ${data.failed ?? 0} รูป)`
+          : `Re-index complete: ${data.indexed ?? 0} photos indexed (${data.failed ?? 0} failed)`,
+      );
+    } catch (error) {
+      console.error("Re-index failed:", error);
+      setMessage(isTh ? "Re-index ไม่สำเร็จ" : "Re-index failed");
+    } finally {
+      setReindexingAlbumId(null);
+    }
+  };
+
   const handleDeletePhoto = async (photoId: string) => {
     if (!managingAlbum) return;
     setDeletingPhotoId(photoId);
@@ -253,6 +280,17 @@ export default function AdminPasswordPage() {
                     >
                       <Images className="h-4 w-4" />
                       {isTh ? "จัดการรูปภาพ" : "Manage Photos"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={reindexingAlbumId === album.id}
+                      onClick={(e) => { e.stopPropagation(); void handleReindex(album); }}
+                      className="flex w-full items-center gap-2 border-t border-[#f1e4d5] px-3 py-2.5 text-left text-sm text-[#5b3f2c] transition hover:bg-[#fff3e5] disabled:opacity-60"
+                    >
+                      <ScanFace className="h-4 w-4" />
+                      {reindexingAlbumId === album.id
+                        ? (isTh ? "กำลัง Re-index..." : "Re-indexing...")
+                        : (isTh ? "Re-index ใบหน้า" : "Re-index Faces")}
                     </button>
                     <button
                       type="button"
