@@ -174,7 +174,7 @@ export default async function DownloadDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      <DownloadDetailClient folderId={safeFolderId} />
+      <DownloadDetailClient folderId={safeFolderId} folderName={resolvedName} />
     </>
   );
 }
