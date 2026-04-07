@@ -16,7 +16,7 @@ import Layout from "@/components/Layout";
 import { useLang } from "@/lib/i18n";
 
 type Photo = { previewUrl: string; downloadUrl: string; name: string };
-type Step = "home" | "camera" | "searching" | "results";
+type Step = "home" | "camera" | "searching" | "results" | "line-sent";
 
 function isIOSDevice() {
   if (typeof navigator === "undefined") return false;
@@ -33,15 +33,24 @@ async function downloadPhoto(photo: Photo) {
     try {
       const res = await fetch(photo.downloadUrl, { cache: "no-store" });
       const blob = await res.blob();
-      const file = new File([blob], photo.name, { type: blob.type || "image/jpeg" });
-      if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+      const file = new File([blob], photo.name, {
+        type: blob.type || "image/jpeg",
+      });
+      if (
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] })
+      ) {
         await navigator.share({ files: [file], title: photo.name });
         return;
       }
     } catch {
       // fall through
     }
-    window.open(photo.previewUrl || photo.downloadUrl, "_blank", "noopener,noreferrer");
+    window.open(
+      photo.previewUrl || photo.downloadUrl,
+      "_blank",
+      "noopener,noreferrer",
+    );
     return;
   }
   const link = document.createElement("a");
@@ -55,16 +64,20 @@ async function downloadPhoto(photo: Photo) {
 export default function DownloadDetailClient({
   folderId,
   folderName,
+  mode,
 }: {
   folderId: string;
   folderName?: string;
+  mode?: string;
 }) {
+  const lineMode = mode === "line";
   const { t } = useLang();
 
   const [step, setStep] = React.useState<Step>("home");
   const [errorMsg, setErrorMsg] = React.useState("");
   const [foundPhotos, setFoundPhotos] = React.useState<Photo[]>([]);
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
+  const [lineSentCount, setLineSentCount] = React.useState(0);
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -77,29 +90,37 @@ export default function DownloadDetailClient({
     }
   }, []);
 
+  // Call getUserMedia directly (preserves user-gesture context on iOS/Android).
+  // Step changes to "camera" only AFTER permission is granted to avoid
+  // the double-call bug caused by the useEffect re-triggering startCamera.
   const startCamera = React.useCallback(async () => {
+    if (streamRef.current) return; // already have a stream
     setErrorMsg("");
-    setStep("camera");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
+      setStep("camera"); // change step after permission granted
     } catch {
-      setStep("home");
       setErrorMsg("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้อง");
     }
   }, []);
 
+  // Attach stream to video element when camera step becomes active
   React.useEffect(() => {
-    if (step === "camera") startCamera();
-    return () => { if (step !== "camera") stopCamera(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+    if (step === "camera" && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(console.error);
+    }
+    return () => {
+      if (step !== "camera") stopCamera();
+    };
+  }, [step, stopCamera]);
 
   const handleCapture = async () => {
     const video = videoRef.current;
@@ -110,43 +131,88 @@ export default function DownloadDetailClient({
     canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
 
-    canvas.toBlob(async (blob) => {
-      if (!blob) { setErrorMsg("ถ่ายภาพไม่สำเร็จ กรุณาลองใหม่"); return; }
-      stopCamera();
-      setStep("searching");
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) {
+          setErrorMsg("ถ่ายภาพไม่สำเร็จ กรุณาลองใหม่");
+          return;
+        }
+        stopCamera();
+        setStep("searching");
 
-      const formData = new FormData();
-      formData.append("selfie", blob, "selfie.jpg");
-      formData.append("eventId", folderId);
+        const formData = new FormData();
+        formData.append("selfie", blob, "selfie.jpg");
+        formData.append("eventId", folderId);
 
-      try {
-        const res = await fetch("/api/face/browse", { method: "POST", body: formData });
-        const data = await res.json();
-        if (!res.ok) { setErrorMsg(data?.error || "เกิดข้อผิดพลาด"); setStep("home"); return; }
-        setFoundPhotos(data.photos ?? []);
-        setStep("results");
-      } catch {
-        setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
-        setStep("home");
-      }
-    }, "image/jpeg", 0.92);
+        if (lineMode) {
+          // LINE mode: call /api/face/search which pushes photos to LINE
+          try {
+            const res = await fetch("/api/face/search", {
+              method: "POST",
+              body: formData,
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              setErrorMsg(data?.error || "เกิดข้อผิดพลาด");
+              setStep("home");
+              return;
+            }
+            setLineSentCount(data.found ?? 0);
+            setStep("line-sent");
+          } catch {
+            setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
+            setStep("home");
+          }
+        } else {
+          // No-LINE mode: call /api/face/browse for direct download
+          try {
+            const res = await fetch("/api/face/browse", {
+              method: "POST",
+              body: formData,
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              setErrorMsg(data?.error || "เกิดข้อผิดพลาด");
+              setStep("home");
+              return;
+            }
+            setFoundPhotos(data.photos ?? []);
+            setStep("results");
+          } catch {
+            setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
+            setStep("home");
+          }
+        }
+      },
+      "image/jpeg",
+      0.92,
+    );
   };
 
   const handleDownloadPhoto = async (photo: Photo) => {
     setDownloadingId(photo.name);
-    try { await downloadPhoto(photo); }
-    catch { /* silent */ }
-    finally { setDownloadingId(null); }
+    try {
+      await downloadPhoto(photo);
+    } catch {
+      /* silent */
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
-  const reset = () => { setStep("home"); setFoundPhotos([]); setErrorMsg(""); };
+  const reset = () => {
+    setStep("home");
+    setFoundPhotos([]);
+    setErrorMsg("");
+    setLineSentCount(0);
+  };
 
   const dt = t?.downloadDetail;
 
   return (
     <Layout>
       {/* Back link */}
-      <div className="container mx-auto px-4 pt-14">
+      <div className="container mx-auto px-4 pt-16">
         <Link
           href="/download"
           className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
@@ -158,16 +224,19 @@ export default function DownloadDetailClient({
 
       {/* ── HOME ─────────────────────────────────────────── */}
       {step === "home" && (
-        <section className="flex min-h-[calc(100dvh-64px)] items-center justify-center px-4 py-8">
+        <section className="flex items-start justify-center px-4 pb-6 pt-3">
           <div className="w-full max-w-sm">
             <div className="overflow-hidden rounded-3xl border border-[#e3d2bf] bg-white shadow-[0_20px_60px_rgba(120,58,12,0.18)]">
-              <div className="flex items-center justify-center bg-linear-to-b from-[#fff4e8] to-[#ffe8cc] py-20">
-                <div className="relative flex h-48 w-48 items-center justify-center rounded-full bg-white shadow-[0_8px_30px_rgba(255,122,46,0.22)]">
-                  <ScanFace className="h-28 w-28 text-primary" strokeWidth={1.2} />
+              <div className="flex items-center justify-center bg-linear-to-b from-[#fff4e8] to-[#ffe8cc] py-12">
+                <div className="relative flex h-36 w-36 items-center justify-center rounded-full bg-white shadow-[0_8px_30px_rgba(255,122,46,0.22)]">
+                  <ScanFace
+                    className="h-20 w-20 text-primary"
+                    strokeWidth={1.2}
+                  />
                   <span className="absolute inset-0 animate-ping rounded-full border-2 border-primary/25" />
                 </div>
               </div>
-              <div className="px-7 pb-12 pt-8 text-center">
+              <div className="px-6 pb-8 pt-5 text-center">
                 {folderName && (
                   <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[#a07858]">
                     {folderName}
@@ -182,21 +251,34 @@ export default function DownloadDetailClient({
                 {errorMsg && (
                   <p className="mt-3 text-xs text-red-600">{errorMsg}</p>
                 )}
-                <a
-                  href={`/api/line/auth?eventId=${encodeURIComponent(folderId)}`}
-                  className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#06C755] px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(6,199,85,0.38)] transition hover:brightness-95 active:scale-95"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  {dt?.lineReceiveBtn}
-                </a>
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(255,122,46,0.35)] transition hover:brightness-95 active:scale-95"
-                >
-                  <Camera className="h-5 w-5" />
-                  {dt?.noLineBtn}
-                </button>
+                {!lineMode && (
+                  <a
+                    href={`/api/line/auth?eventId=${encodeURIComponent(folderId)}`}
+                    className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#06C755] px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(6,199,85,0.38)] transition hover:brightness-95 active:scale-95"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    {dt?.lineReceiveBtn}
+                  </a>
+                )}
+                {lineMode ? (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(255,122,46,0.35)] transition hover:brightness-95 active:scale-95"
+                  >
+                    <Camera className="h-5 w-5" />
+                    {dt?.noLineCaptureBtn ?? "ถ่ายเซลฟี่"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(255,122,46,0.35)] transition hover:brightness-95 active:scale-95"
+                  >
+                    <Camera className="h-5 w-5" />
+                    {dt?.noLineBtn}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -208,7 +290,10 @@ export default function DownloadDetailClient({
         <section className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
           <button
             type="button"
-            onClick={() => { stopCamera(); setStep("home"); }}
+            onClick={() => {
+              stopCamera();
+              setStep("home");
+            }}
             className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur hover:bg-white/30"
           >
             <X size={20} />
@@ -262,7 +347,11 @@ export default function DownloadDetailClient({
         <section className="container mx-auto px-4 py-10">
           <div className="mb-6 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-[#2b1a10]">
-              {folderName && <span className="mr-2 text-sm font-normal text-[#a07858]">{folderName} —</span>}
+              {folderName && (
+                <span className="mr-2 text-sm font-normal text-[#a07858]">
+                  {folderName} —
+                </span>
+              )}
               {dt?.noLineFoundTitle}
             </h2>
             <button
@@ -276,7 +365,9 @@ export default function DownloadDetailClient({
           </div>
 
           {foundPhotos.length === 0 ? (
-            <p className="text-center text-sm text-[#6f5a4b]">{dt?.noLineNotFound}</p>
+            <p className="text-center text-sm text-[#6f5a4b]">
+              {dt?.noLineNotFound}
+            </p>
           ) : (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
               {foundPhotos.map((photo) => (
@@ -295,7 +386,10 @@ export default function DownloadDetailClient({
                     />
                   </div>
                   <div className="p-3">
-                    <p className="mb-2 truncate text-xs text-[#6a5445]" title={photo.name}>
+                    <p
+                      className="mb-2 truncate text-xs text-[#6a5445]"
+                      title={photo.name}
+                    >
                       {photo.name}
                     </p>
                     <button
@@ -314,6 +408,37 @@ export default function DownloadDetailClient({
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {/* ── LINE SENT ────────────────────────────────────── */}
+      {step === "line-sent" && (
+        <section className="flex min-h-[calc(100dvh-64px)] items-center justify-center px-4">
+          <div className="w-full max-w-sm text-center">
+            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#06C755]/15">
+              <MessageCircle className="h-12 w-12 text-[#06C755]" />
+            </div>
+            <h2 className="text-2xl font-bold text-[#2b1a10]">
+              {dt?.lineSentTitle ?? "ส่งรูปแล้ว!"}
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[#6f5a4b]">
+              {lineSentCount > 0
+                ? (
+                    dt?.lineSentDesc ??
+                    `ส่ง ${lineSentCount} รูปไปยัง LINE ของคุณแล้ว`
+                  ).replace("{count}", String(lineSentCount))
+                : (dt?.lineSentNotFound ??
+                  "ไม่พบรูปที่ตรงกับใบหน้าของคุณในอีเวนต์นี้")}
+            </p>
+            <button
+              type="button"
+              onClick={reset}
+              className="mt-8 inline-flex items-center gap-2 rounded-2xl border border-[#e3d2bf] bg-white px-6 py-3 text-sm font-medium text-[#4d3a2e] transition hover:bg-[#fff4e8]"
+            >
+              <RefreshCw size={14} />
+              {dt?.noLineTryAgain ?? "ลองใหม่"}
+            </button>
+          </div>
         </section>
       )}
     </Layout>

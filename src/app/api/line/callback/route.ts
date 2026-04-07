@@ -24,13 +24,13 @@ export async function GET(req: NextRequest) {
 
   if (lineError) {
     return NextResponse.redirect(
-      `${siteUrl}/photobooth?error=line_denied`,
+      `${siteUrl}/download?error=line_denied`,
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${siteUrl}/photobooth?error=invalid_callback`,
+      `${siteUrl}/download?error=invalid_callback`,
     );
   }
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     if (!eventId) throw new Error("Missing eventId in state");
   } catch {
     return NextResponse.redirect(
-      `${siteUrl}/photobooth?error=invalid_state`,
+      `${siteUrl}/download?error=invalid_state`,
     );
   }
 
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error("[LINE callback] auth error:", err);
     return NextResponse.redirect(
-      `${siteUrl}/photobooth/${eventId}?error=line_auth_failed`,
+      `${siteUrl}/download/${eventId}?error=line_auth_failed`,
     );
   }
 
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     .sign(encoder.encode(jwtSecret));
 
   const response = NextResponse.redirect(
-    `${siteUrl}/photobooth/${eventId}?step=selfie`,
+    `${siteUrl}/download/${eventId}?mode=line`,
   );
   response.cookies.set("photobooth_session", sessionToken, {
     httpOnly: true,
