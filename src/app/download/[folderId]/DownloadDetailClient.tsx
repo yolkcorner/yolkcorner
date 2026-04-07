@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { flushSync } from "react-dom";
 import {
   ArrowLeft,
   Camera,
@@ -82,7 +83,6 @@ export default function DownloadDetailClient({
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
-
   const stopCamera = React.useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -128,13 +128,14 @@ export default function DownloadDetailClient({
     }
 
     streamRef.current = stream;
-    // video element is always in the DOM — attach directly before changing step
+    // flushSync forces React to commit the camera UI to the DOM synchronously
+    // so videoRef.current is the real <video> element before we attach the stream.
+    flushSync(() => setStep("camera"));
     const video = videoRef.current;
     if (video) {
       video.srcObject = stream;
       video.play().catch(console.error);
     }
-    setStep("camera");
   }, []);
 
   // Cleanup stream when leaving camera step
@@ -308,7 +309,6 @@ export default function DownloadDetailClient({
       )}
 
       {/* ── CAMERA ───────────────────────────────────────── */}
-      {/* ── CAMERA ───────────────────────────────────────── */}
       {step === "camera" && (
         <section className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
           <button
@@ -326,11 +326,15 @@ export default function DownloadDetailClient({
             {dt?.noLineScanTitle}
           </p>
 
-          {/* Face oval guide — video is always mounted outside, teleported here visually via absolute positioning */}
+          {/* Face oval guide */}
           <div className="relative">
-            <div className="h-[60dvh] w-[80vw] max-w-sm overflow-hidden rounded-2xl bg-neutral-900">
-              {/* video rendered here via portal-like approach: video el is always in DOM */}
-            </div>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="h-[60dvh] w-[80vw] max-w-sm rounded-2xl object-cover"
+            />
             {/* oval overlay */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-[55%] w-[60%] rounded-full border-4 border-white/60" />
@@ -338,6 +342,8 @@ export default function DownloadDetailClient({
           </div>
 
           <p className="mt-4 text-xs text-white/60">{dt?.noLineScanDesc}</p>
+
+          <canvas ref={canvasRef} className="sr-only" />
 
           <button
             type="button"
@@ -348,20 +354,6 @@ export default function DownloadDetailClient({
           </button>
         </section>
       )}
-
-      {/* video + canvas always in DOM so refs are always available */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className={
-          step === "camera"
-            ? "fixed inset-0 z-51 m-auto h-[60dvh] w-[80vw] max-w-sm rounded-2xl object-cover"
-            : "sr-only"
-        }
-      />
-      <canvas ref={canvasRef} className="sr-only" />
 
       {/* ── SEARCHING ────────────────────────────────────── */}
       {step === "searching" && (
