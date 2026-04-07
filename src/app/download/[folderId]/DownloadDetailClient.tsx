@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { flushSync } from "react-dom";
 import {
   ArrowLeft,
   Camera,
@@ -18,6 +17,93 @@ import { useLang } from "@/lib/i18n";
 
 type Photo = { previewUrl: string; downloadUrl: string; name: string };
 type Step = "home" | "camera" | "searching" | "results" | "line-sent";
+
+// ─── CameraView ───────────────────────────────────────────────────────────────
+// Separate component so it has its own mount lifecycle.
+// useEffect fires AFTER the <video> element is in the DOM, guaranteeing
+// videoRef.current is valid before srcObject is assigned.
+function CameraView({
+  stream,
+  onBlob,
+  onClose,
+  instructionText,
+  hintText,
+}: {
+  stream: MediaStream;
+  onBlob: (blob: Blob) => void;
+  onClose: () => void;
+  instructionText?: string;
+  hintText?: string;
+}) {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    video.play().catch(console.error);
+    return () => {
+      video.srcObject = null;
+    };
+  }, [stream]);
+
+  const handleCapture = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) onBlob(blob);
+      },
+      "image/jpeg",
+      0.92,
+    );
+  };
+
+  return (
+    <section className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur hover:bg-white/30"
+      >
+        <X size={20} />
+      </button>
+
+      <p className="mb-4 text-sm font-medium text-white/80">{instructionText}</p>
+
+      <div className="relative">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="h-[60dvh] w-[80vw] max-w-sm rounded-2xl object-cover"
+        />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="h-[55%] w-[60%] rounded-full border-4 border-white/60" />
+        </div>
+      </div>
+
+      <p className="mt-4 text-xs text-white/60">{hintText}</p>
+
+      <canvas ref={canvasRef} className="sr-only" />
+
+      <button
+        type="button"
+        onClick={handleCapture}
+        className="mt-6 inline-flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-lg transition active:scale-95"
+      >
+        <Camera size={28} className="text-primary" />
+      </button>
+    </section>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function isIOSDevice() {
   if (typeof navigator === "undefined") return false;
@@ -79,30 +165,19 @@ export default function DownloadDetailClient({
   const [foundPhotos, setFoundPhotos] = React.useState<Photo[]>([]);
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
   const [lineSentCount, setLineSentCount] = React.useState(0);
+  const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(null);
 
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const canvasRef = React.useRef<HTMLCanvasElement>(null);
-  const streamRef = React.useRef<MediaStream | null>(null);
-  const stopCamera = React.useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  }, []);
+  const stopCamera = React.useCallback((stream?: MediaStream | null) => {
+    const s = stream ?? cameraStream;
+    if (s) s.getTracks().forEach((t) => t.stop());
+    setCameraStream(null);
+  }, [cameraStream]);
 
-  // Call getUserMedia directly (preserves user-gesture context on iOS/Android).
-  // Step changes to "camera" only AFTER a stream is obtained to avoid
-  // the double-call bug caused by the useEffect re-triggering startCamera.
-  // We try progressively simpler constraints to handle OverconstrainedError
-  // on various Android/iOS devices.
   const startCamera = React.useCallback(async () => {
-    if (streamRef.current) return; // already have a stream
     setErrorMsg("");
 
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setErrorMsg(
-        "เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง กรุณาใช้ Chrome หรือ Safari",
-      );
+      setErrorMsg("เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง กรุณาใช้ Chrome หรือ Safari");
       return;
     }
 
@@ -127,107 +202,54 @@ export default function DownloadDetailClient({
       return;
     }
 
-    streamRef.current = stream;
-    // flushSync forces React to commit the camera UI to the DOM synchronously
-    // so videoRef.current is the real <video> element before we attach the stream.
-    flushSync(() => setStep("camera"));
-    const video = videoRef.current;
-    if (video) {
-      video.srcObject = stream;
-      video.play().catch(console.error);
-    }
+    setCameraStream(stream);
+    setStep("camera");
   }, []);
 
-  // Cleanup stream when leaving camera step
-  React.useEffect(() => {
-    return () => {
-      if (step !== "camera") stopCamera();
-    };
-  }, [step, stopCamera]);
+  const handleBlob = React.useCallback(async (blob: Blob) => {
+    // Stop camera and move to searching while uploading selfie
+    setCameraStream((s) => { if (s) s.getTracks().forEach((t) => t.stop()); return null; });
+    setStep("searching");
 
-  const handleCapture = async () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    const formData = new FormData();
+    formData.append("selfie", blob, "selfie.jpg");
+    formData.append("eventId", folderId);
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0);
-
-    canvas.toBlob(
-      async (blob) => {
-        if (!blob) {
-          setErrorMsg("ถ่ายภาพไม่สำเร็จ กรุณาลองใหม่");
-          return;
-        }
-        stopCamera();
-        setStep("searching");
-
-        const formData = new FormData();
-        formData.append("selfie", blob, "selfie.jpg");
-        formData.append("eventId", folderId);
-
-        if (lineMode) {
-          // LINE mode: call /api/face/search which pushes photos to LINE
-          try {
-            const res = await fetch("/api/face/search", {
-              method: "POST",
-              body: formData,
-            });
-            const data = await res.json();
-            if (!res.ok) {
-              setErrorMsg(data?.error || "เกิดข้อผิดพลาด");
-              setStep("home");
-              return;
-            }
-            setLineSentCount(data.found ?? 0);
-            setStep("line-sent");
-          } catch {
-            setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
-            setStep("home");
-          }
-        } else {
-          // No-LINE mode: call /api/face/browse for direct download
-          try {
-            const res = await fetch("/api/face/browse", {
-              method: "POST",
-              body: formData,
-            });
-            const data = await res.json();
-            if (!res.ok) {
-              setErrorMsg(data?.error || "เกิดข้อผิดพลาด");
-              setStep("home");
-              return;
-            }
-            setFoundPhotos(data.photos ?? []);
-            setStep("results");
-          } catch {
-            setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
-            setStep("home");
-          }
-        }
-      },
-      "image/jpeg",
-      0.92,
-    );
-  };
-
-  const handleDownloadPhoto = async (photo: Photo) => {
-    setDownloadingId(photo.name);
-    try {
-      await downloadPhoto(photo);
-    } catch {
-      /* silent */
-    } finally {
-      setDownloadingId(null);
+    if (lineMode) {
+      try {
+        const res = await fetch("/api/face/search", { method: "POST", body: formData });
+        const data = await res.json();
+        if (!res.ok) { setErrorMsg(data?.error || "เกิดข้อผิดพลาด"); setStep("home"); return; }
+        setLineSentCount(data.found ?? 0);
+        setStep("line-sent");
+      } catch {
+        setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
+        setStep("home");
+      }
+    } else {
+      try {
+        const res = await fetch("/api/face/browse", { method: "POST", body: formData });
+        const data = await res.json();
+        if (!res.ok) { setErrorMsg(data?.error || "เกิดข้อผิดพลาด"); setStep("home"); return; }
+        setFoundPhotos(data.photos ?? []);
+        setStep("results");
+      } catch {
+        setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
+        setStep("home");
+      }
     }
-  };
+  }, [folderId, lineMode]);
 
   const reset = () => {
     setStep("home");
     setFoundPhotos([]);
     setErrorMsg("");
     setLineSentCount(0);
+  };
+
+  const handleDownloadPhoto = async (photo: Photo) => {
+    setDownloadingId(photo.name);
+    try { await downloadPhoto(photo); } catch { /* silent */ } finally { setDownloadingId(null); }
   };
 
   const dt = t?.downloadDetail;
@@ -309,50 +331,17 @@ export default function DownloadDetailClient({
       )}
 
       {/* ── CAMERA ───────────────────────────────────────── */}
-      {step === "camera" && (
-        <section className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
-          <button
-            type="button"
-            onClick={() => {
-              stopCamera();
-              setStep("home");
-            }}
-            className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur hover:bg-white/30"
-          >
-            <X size={20} />
-          </button>
-
-          <p className="mb-4 text-sm font-medium text-white/80">
-            {dt?.noLineScanTitle}
-          </p>
-
-          {/* Face oval guide */}
-          <div className="relative">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="h-[60dvh] w-[80vw] max-w-sm rounded-2xl object-cover"
-            />
-            {/* oval overlay */}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="h-[55%] w-[60%] rounded-full border-4 border-white/60" />
-            </div>
-          </div>
-
-          <p className="mt-4 text-xs text-white/60">{dt?.noLineScanDesc}</p>
-
-          <canvas ref={canvasRef} className="sr-only" />
-
-          <button
-            type="button"
-            onClick={handleCapture}
-            className="mt-6 inline-flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-lg transition active:scale-95"
-          >
-            <Camera size={28} className="text-primary" />
-          </button>
-        </section>
+      {step === "camera" && cameraStream && (
+        <CameraView
+          stream={cameraStream}
+          onBlob={handleBlob}
+          onClose={() => {
+            stopCamera(cameraStream);
+            setStep("home");
+          }}
+          instructionText={dt?.noLineScanTitle}
+          hintText={dt?.noLineScanDesc}
+        />
       )}
 
       {/* ── SEARCHING ────────────────────────────────────── */}
