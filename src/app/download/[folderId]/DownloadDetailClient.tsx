@@ -144,13 +144,24 @@ async function downloadPhoto(photo: Photo) {
     );
     return;
   }
-  const link = document.createElement("a");
-  link.href = photo.downloadUrl;
-  link.download = photo.name; // force download, not open
-  link.rel = "noopener noreferrer";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  // For cross-origin URLs (e.g. R2 CDN), the `download` attribute is ignored
+  // by the browser. We must fetch the file as a blob first, then create a
+  // temporary object URL on the same origin to force a real download.
+  try {
+    const res = await fetch(photo.downloadUrl, { cache: "no-store" });
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = photo.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+  } catch {
+    // Fallback: open in new tab
+    window.open(photo.downloadUrl, "_blank", "noopener,noreferrer");
+  }
 }
 
 export default function DownloadDetailClient({
