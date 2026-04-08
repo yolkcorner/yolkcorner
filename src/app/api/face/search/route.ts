@@ -15,12 +15,15 @@ const encoder = new TextEncoder();
 
 /**
  * POST /api/face/search
- * FormData: { selfie: File }
- * Cookie: photobooth_session (set by /api/line/callback)
+ * FormData: { selfie: File, session: string (JWT), eventId: string }
  *
  * Searches the event's Rekognition Collection for faces matching the selfie,
- * then pushes the matching photos to the user's LINE account.
- * Returns { found: number, message: string }.
+ * then attempts to push the matching photos to the user's LINE account.
+ * Returns { found, photos, lineSent, message }.
+ *
+ * If the LINE push fails for any reason (user hasn't added OA, invalid token, etc.),
+ * the endpoint still returns 200 with lineSent=false and the photo URLs so the
+ * client can fall back to showing a download UI instead of a hard error.
  */
 export async function POST(req: NextRequest) {
   // Accept session token from FormData body (URL-param flow) or cookie (legacy fallback).
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     if (!sessionToken) {
       return NextResponse.json(
-        { error: "LINE session not found. Please log in with LINE first." },
+        { error: "ไม่พบ session LINE กรุณาล็อกอินด้วย LINE ใหม่อีกครั้ง" },
         { status: 401 },
       );
     }
@@ -59,7 +62,7 @@ export async function POST(req: NextRequest) {
       if (!lineUserId || !eventId) throw new Error("Invalid session payload");
     } catch {
       return NextResponse.json(
-        { error: "Invalid or expired session. Please log in with LINE again." },
+        { error: "Session หมดอายุ กรุณาล็อกอินด้วย LINE ใหม่อีกครั้ง" },
         { status: 401 },
       );
     }
@@ -81,7 +84,7 @@ export async function POST(req: NextRequest) {
 
   if (!isRekognitionConfigured()) {
     return NextResponse.json(
-      { error: "Face recognition is not configured" },
+      { error: "ระบบจดจำใบหน้ายังไม่ได้ตั้งค่า กรุณาติดต่อผู้จัดงาน" },
       { status: 503 },
     );
   }
@@ -99,25 +102,19 @@ export async function POST(req: NextRequest) {
       err.name === "ResourceNotFoundException"
     ) {
       return NextResponse.json(
-        {
-          error:
-            "This event has not been indexed yet. Please ask the organizer.",
-        },
+        { error: "อีเวนต์นี้ยังไม่ได้ทำการ index ใบหน้า กรุณาติดต่อผู้จัดงาน" },
         { status: 404 },
       );
     }
     console.error("[face/search] Rekognition error:", err);
     return NextResponse.json(
-      { error: "Face recognition failed. Please try again." },
+      { error: "ระบบจดจำใบหน้าขัดข้อง กรุณาลองใหม่อีกครั้ง" },
       { status: 500 },
     );
   }
 
   if (!matches.length) {
-    return NextResponse.json({
-      found: 0,
-      message: "ไม่พบรูปของคุณในงานนี้ หรือภาพ selfie ไม่ชัดพอ กรุณาลองใหม่",
-    });
+    return NextResponse.json({ found: 0, lineSent: false, photos: [] });
   }
 
   // Deduplicate by photo (externalImageId = base64url R2 key)
@@ -133,7 +130,17 @@ export async function POST(req: NextRequest) {
     .filter((u): u is string => Boolean(u))
     .slice(0, 30); // safety cap
 
-  // Push photos via LINE Messaging API
+  // Build the photos array (same shape as /api/face/browse)
+  const photos = photoUrls.map((url) => ({
+    previewUrl: url,
+    downloadUrl: url,
+    name: url.split("/").pop() ?? "photo",
+  }));
+
+  // Attempt LINE push. If it fails for any reason (user hasn't added OA,
+  // invalid token, network issue, etc.) we still return 200 with lineSent=false
+  // so the client can fall back to the download UI instead of showing an error.
+  let lineSent = false;
   if (isLineConfigured() && photoUrls.length > 0) {
     try {
       await pushPhotosToLine(
@@ -142,20 +149,19 @@ export async function POST(req: NextRequest) {
         photoUrls,
         displayName,
       );
+      lineSent = true;
     } catch (err) {
       console.error("[face/search] LINE push error:", err);
-      return NextResponse.json(
-        {
-          error:
-            "พบรูปของคุณแล้ว แต่ไม่สามารถส่งทาง LINE ได้ กรุณาตรวจสอบว่าคุณได้ add LINE OA แล้ว",
-        },
-        { status: 502 },
-      );
+      // lineSent stays false — client will show download UI
     }
   }
 
   return NextResponse.json({
     found: photoUrls.length,
-    message: `ส่ง ${photoUrls.length} รูปทาง LINE ให้คุณแล้ว! 🎉`,
+    photos,
+    lineSent,
+    message: lineSent
+      ? `ส่ง ${photoUrls.length} รูปทาง LINE ให้คุณแล้ว! 🎉`
+      : `พบ ${photoUrls.length} รูป — กดดาวน์โหลดด้านล่างได้เลย`,
   });
 }

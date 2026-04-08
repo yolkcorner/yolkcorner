@@ -155,11 +155,13 @@ export default function DownloadDetailClient({
   folderName,
   mode,
   lineSession,
+  urlError,
 }: {
   folderId: string;
   folderName?: string;
   mode?: string;
   lineSession?: string;
+  urlError?: string;
 }) {
   const lineMode = mode === "line";
   const { t } = useLang();
@@ -172,6 +174,18 @@ export default function DownloadDetailClient({
   const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(
     null,
   );
+
+  // Show URL-level errors from LINE OAuth callback (e.g. user denied, auth failed)
+  React.useEffect(() => {
+    if (!urlError) return;
+    const msgs: Record<string, string> = {
+      line_denied: "คุณปฏิเสธการเข้าสู่ระบบด้วย LINE",
+      line_auth_failed: "ล็อกอิน LINE ไม่สำเร็จ กรุณาลองใหม่",
+      invalid_state: "ลิงก์ LINE หมดอายุ กรุณาเริ่มใหม่",
+      invalid_callback: "Callback ไม่ถูกต้อง กรุณาเริ่มใหม่",
+    };
+    setErrorMsg(msgs[urlError] ?? `เกิดข้อผิดพลาด: ${urlError}`);
+  }, [urlError]);
 
   const stopCamera = React.useCallback(
     (stream?: MediaStream | null) => {
@@ -242,8 +256,15 @@ export default function DownloadDetailClient({
             setStep("home");
             return;
           }
-          setLineSentCount(data.found ?? 0);
-          setStep("line-sent");
+          // If LINE push succeeded, show the sent confirmation screen.
+          // If push failed (lineSent=false), fall back to the download UI.
+          if (data.lineSent) {
+            setLineSentCount(data.found ?? 0);
+            setStep("line-sent");
+          } else {
+            setFoundPhotos(data.photos ?? []);
+            setStep("results");
+          }
         } catch {
           setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
           setStep("home");
@@ -331,8 +352,10 @@ export default function DownloadDetailClient({
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-[#6f5a4b]">
                   {lineMode
-                    ? (dt?.lineFaceDesc ?? "จัดใบหน้าให้อยู่ในกรอบ และเราจะส่งรูปเข้า LINE อัตโนมัติ")
-                    : (dt?.noLineScanDesc ?? "จัดใบหน้าให้อยู่ในกรอบ เราจะค้นหารูปของคุณโดยอัตโนมัติ")}
+                    ? (dt?.lineFaceDesc ??
+                      "จัดใบหน้าให้อยู่ในกรอบ และเราจะส่งรูปเข้า LINE อัตโนมัติ")
+                    : (dt?.noLineScanDesc ??
+                      "จัดใบหน้าให้อยู่ในกรอบ เราจะค้นหารูปของคุณโดยอัตโนมัติ")}
                 </p>
                 {errorMsg && (
                   <p className="mt-3 text-xs text-red-600">{errorMsg}</p>
