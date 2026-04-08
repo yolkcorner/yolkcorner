@@ -4,10 +4,12 @@ import * as React from "react";
 import {
   ArrowLeft,
   Camera,
+  CheckSquare,
   Download,
   MessageCircle,
   RefreshCw,
   ScanFace,
+  Square,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -144,6 +146,7 @@ async function downloadPhoto(photo: Photo) {
   }
   const link = document.createElement("a");
   link.href = photo.downloadUrl;
+  link.download = photo.name; // force download, not open
   link.rel = "noopener noreferrer";
   document.body.appendChild(link);
   link.click();
@@ -170,6 +173,10 @@ export default function DownloadDetailClient({
   const [errorMsg, setErrorMsg] = React.useState("");
   const [foundPhotos, setFoundPhotos] = React.useState<Photo[]>([]);
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = React.useState<Set<string>>(
+    new Set(),
+  );
+  const [downloadingAll, setDownloadingAll] = React.useState(false);
   const [lineSentCount, setLineSentCount] = React.useState(0);
   const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(
     null,
@@ -297,6 +304,7 @@ export default function DownloadDetailClient({
     setFoundPhotos([]);
     setErrorMsg("");
     setLineSentCount(0);
+    setSelectedPhotos(new Set());
   };
 
   const handleDownloadPhoto = async (photo: Photo) => {
@@ -308,6 +316,35 @@ export default function DownloadDetailClient({
     } finally {
       setDownloadingId(null);
     }
+  };
+
+  const toggleSelect = (name: string) => {
+    setSelectedPhotos((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPhotos.size === foundPhotos.length) {
+      setSelectedPhotos(new Set());
+    } else {
+      setSelectedPhotos(new Set(foundPhotos.map((p) => p.name)));
+    }
+  };
+
+  const handleDownloadSelected = async () => {
+    const toDownload = foundPhotos.filter((p) => selectedPhotos.has(p.name));
+    if (!toDownload.length) return;
+    setDownloadingAll(true);
+    for (const photo of toDownload) {
+      await downloadPhoto(photo);
+      // small delay so browser doesn't block multiple simultaneous downloads
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    setDownloadingAll(false);
   };
 
   const dt = t?.downloadDetail;
@@ -412,7 +449,8 @@ export default function DownloadDetailClient({
       {/* ── RESULTS ──────────────────────────────────────── */}
       {step === "results" && (
         <section className="container mx-auto px-4 py-10">
-          <div className="mb-6 flex items-center justify-between gap-3">
+          {/* Header row */}
+          <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-[#2b1a10]">
               {folderName && (
                 <span className="mr-2 text-sm font-normal text-[#a07858]">
@@ -436,44 +474,89 @@ export default function DownloadDetailClient({
               {dt?.noLineNotFound}
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              {foundPhotos.map((photo) => (
-                <div
-                  key={photo.name}
-                  className="overflow-hidden rounded-2xl border border-[#efddca] bg-[#fff7ee]"
+            <>
+              {/* Select all + Download selected bar */}
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white px-4 py-3">
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-[#4d3a2e] transition hover:text-primary"
                 >
-                  <div className="relative aspect-square">
-                    <Image
-                      src={photo.previewUrl}
-                      alt={photo.name}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                      sizes="(max-width: 640px) 50vw, 33vw"
-                    />
-                  </div>
-                  <div className="p-3">
-                    <p
-                      className="mb-2 truncate text-xs text-[#6a5445]"
-                      title={photo.name}
+                  {selectedPhotos.size === foundPhotos.length ? (
+                    <CheckSquare size={18} className="text-primary" />
+                  ) : (
+                    <Square size={18} />
+                  )}
+                  {selectedPhotos.size === foundPhotos.length
+                    ? "ยกเลิกทั้งหมด"
+                    : `เลือกทั้งหมด (${foundPhotos.length})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadSelected}
+                  disabled={selectedPhotos.size === 0 || downloadingAll}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
+                >
+                  <Download size={14} />
+                  {downloadingAll
+                    ? "กำลังดาวน์โหลด..."
+                    : `ดาวน์โหลด${selectedPhotos.size > 0 ? ` (${selectedPhotos.size})` : "ที่เลือก"}`}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+                {foundPhotos.map((photo) => {
+                  const selected = selectedPhotos.has(photo.name);
+                  return (
+                    <div
+                      key={photo.name}
+                      className={`overflow-hidden rounded-2xl border bg-[#fff7ee] transition ${selected ? "border-primary ring-2 ring-primary/30" : "border-[#efddca]"}`}
                     >
-                      {photo.name}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadPhoto(photo)}
-                      disabled={downloadingId === photo.name}
-                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
-                    >
-                      <Download size={13} />
-                      {downloadingId === photo.name
-                        ? (dt?.downloading ?? "...")
-                        : (t?.common?.download ?? "Download")}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div
+                        className="relative aspect-square cursor-pointer"
+                        onClick={() => toggleSelect(photo.name)}
+                      >
+                        <Image
+                          src={photo.previewUrl}
+                          alt={photo.name}
+                          fill
+                          unoptimized
+                          className="object-cover"
+                          sizes="(max-width: 640px) 50vw, 33vw"
+                        />
+                        {/* Checkbox overlay */}
+                        <div className="absolute right-2 top-2">
+                          {selected ? (
+                            <CheckSquare
+                              size={22}
+                              className="rounded-md bg-white text-primary drop-shadow"
+                            />
+                          ) : (
+                            <Square
+                              size={22}
+                              className="rounded-md bg-white/80 text-[#aaa] drop-shadow"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-3">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPhoto(photo)}
+                          disabled={downloadingId === photo.name}
+                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+                        >
+                          <Download size={13} />
+                          {downloadingId === photo.name
+                            ? (dt?.downloading ?? "...")
+                            : (t?.common?.download ?? "Download")}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </section>
       )}
