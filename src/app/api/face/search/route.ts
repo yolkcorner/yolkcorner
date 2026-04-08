@@ -23,47 +23,47 @@ const encoder = new TextEncoder();
  * Returns { found: number, message: string }.
  */
 export async function POST(req: NextRequest) {
-  // Verify LINE session
+  // Accept session token from FormData body (URL-param flow) or cookie (legacy fallback).
+  // The URL-param approach is needed because Set-Cookie on 3xx redirects is
+  // unreliable on mobile browsers (iOS Safari / Android Chrome).
   const sessionCookie = req.cookies.get("photobooth_session")?.value;
-  if (!sessionCookie) {
-    return NextResponse.json(
-      { error: "LINE session not found. Please log in with LINE first." },
-      { status: 401 },
-    );
-  }
 
-  const jwtSecret = process.env.JWT_SECRET!;
+  // We can't read formData twice, so we defer extraction below.
+  // Instead, read formData once and pluck both the session token and the selfie.
   let lineUserId: string;
   let displayName: string;
   let eventId: string;
-
-  try {
-    const { payload } = await jwtVerify(
-      sessionCookie,
-      encoder.encode(jwtSecret),
-    );
-    lineUserId = payload.lineUserId as string;
-    displayName = payload.displayName as string;
-    eventId = payload.eventId as string;
-    if (!lineUserId || !eventId) throw new Error("Invalid session payload");
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid or expired session. Please log in with LINE again." },
-      { status: 401 },
-    );
-  }
-
-  if (!isRekognitionConfigured()) {
-    return NextResponse.json(
-      { error: "Face recognition is not configured" },
-      { status: 503 },
-    );
-  }
-
-  // Parse selfie from FormData
   let selfieBytes: Uint8Array;
+
   try {
     const formData = await req.formData();
+    const sessionFromBody = formData.get("session") as string | null;
+    const sessionToken = sessionFromBody ?? sessionCookie ?? null;
+
+    if (!sessionToken) {
+      return NextResponse.json(
+        { error: "LINE session not found. Please log in with LINE first." },
+        { status: 401 },
+      );
+    }
+
+    const jwtSecret = process.env.JWT_SECRET!;
+    try {
+      const { payload } = await jwtVerify(
+        sessionToken,
+        encoder.encode(jwtSecret),
+      );
+      lineUserId = payload.lineUserId as string;
+      displayName = payload.displayName as string;
+      eventId = payload.eventId as string;
+      if (!lineUserId || !eventId) throw new Error("Invalid session payload");
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid or expired session. Please log in with LINE again." },
+        { status: 401 },
+      );
+    }
+
     const selfie = formData.get("selfie") as File | null;
     if (!selfie) {
       return NextResponse.json(
@@ -74,8 +74,15 @@ export async function POST(req: NextRequest) {
     selfieBytes = new Uint8Array(await selfie.arrayBuffer());
   } catch {
     return NextResponse.json(
-      { error: "Failed to read selfie" },
+      { error: "Failed to read request" },
       { status: 400 },
+    );
+  }
+
+  if (!isRekognitionConfigured()) {
+    return NextResponse.json(
+      { error: "Face recognition is not configured" },
+      { status: 503 },
     );
   }
 

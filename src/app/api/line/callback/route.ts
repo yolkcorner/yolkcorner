@@ -75,16 +75,11 @@ export async function GET(req: NextRequest) {
     .setExpirationTime("1h")
     .sign(encoder.encode(jwtSecret));
 
-  const response = NextResponse.redirect(
-    `${siteUrl}/download/${eventId}?mode=line`,
+  // Pass the session token via URL param instead of a cookie.
+  // Set-Cookie on a 3xx redirect response is unreliable on mobile browsers
+  // (both iOS Safari and Android Chrome may drop it). Using a URL param is
+  // universally supported and the token is short-lived + HMAC-signed.
+  return NextResponse.redirect(
+    `${siteUrl}/download/${eventId}?mode=line&session=${encodeURIComponent(sessionToken)}`,
   );
-  response.cookies.set("photobooth_session", sessionToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 3600,
-    path: "/",
-  });
-
-  return response;
 }

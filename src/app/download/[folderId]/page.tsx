@@ -21,6 +21,7 @@ const getFolderName = async (folderId: string): Promise<string | null> => {
 
 type DownloadPageProps = {
   params: Promise<{ folderId: string }>;
+  searchParams: Promise<{ mode?: string; session?: string }>;
 };
 
 export async function generateMetadata({
@@ -79,8 +80,10 @@ export async function generateMetadata({
 
 export default async function DownloadDetailPage({
   params,
+  searchParams,
 }: DownloadPageProps) {
   const { folderId } = await params;
+  const { mode, session } = await searchParams;
   const safeFolderId = normalizeEventId(folderId);
   const content = await readSiteContent();
   const siteName = content?.branding?.siteName?.trim() || "Yolk Corner";
@@ -174,7 +177,12 @@ export default async function DownloadDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      <DownloadDetailClient folderId={safeFolderId} folderName={resolvedName} />
+      <DownloadDetailClient
+        folderId={safeFolderId}
+        folderName={resolvedName}
+        mode={mode}
+        lineSession={session}
+      />
     </>
   );
 }
