@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildLineAuthUrl, isLineConfigured } from "@/lib/line";
+import { buildLineAuthUrl, isLoginConfigured } from "@/lib/line";
 import { SignJWT } from "jose";
 
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  if (!isLineConfigured()) {
+  if (!isLoginConfigured()) {
     return NextResponse.json(
       { error: "LINE Login is not configured" },
       { status: 503 },

@@ -118,6 +118,15 @@ async function pushLineMessages(
   }
 }
 
+/** True if LINE Login (OAuth) credentials are set */
+export function isLoginConfigured(): boolean {
+  return Boolean(
+    process.env.LINE_LOGIN_CHANNEL_ID &&
+      process.env.LINE_LOGIN_CHANNEL_SECRET,
+  );
+}
+
+/** True if LINE Messaging API (push) credentials are set */
 export function isLineConfigured(): boolean {
   return Boolean(
     process.env.LINE_LOGIN_CHANNEL_ID &&
