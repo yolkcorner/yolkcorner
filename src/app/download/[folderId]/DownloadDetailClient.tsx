@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Camera,
@@ -199,9 +200,12 @@ export default function DownloadDetailClient({
     new Set(),
   );
   const [lineSentCount, setLineSentCount] = React.useState(0);
+  const [mounted, setMounted] = React.useState(false);
   const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(
     null,
   );
+
+  React.useEffect(() => { setMounted(true); }, []);
 
   // Show URL-level errors from LINE OAuth callback (e.g. user denied, auth failed)
   React.useEffect(() => {
@@ -567,38 +571,6 @@ export default function DownloadDetailClient({
                 })}
               </div>
 
-              {/* Floating bottom bar */}
-              <div className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-2xl px-4 pb-4">
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white/95 px-4 py-3 shadow-[0_8px_32px_rgba(120,58,12,0.18)] backdrop-blur">
-                  <button
-                    type="button"
-                    onClick={toggleSelectAll}
-                    className="inline-flex items-center gap-2 text-sm font-medium text-[#4d3a2e] transition hover:text-primary"
-                  >
-                    {selectedPhotos.size === foundPhotos.length ? (
-                      <CheckCircle2 size={18} className="text-primary" />
-                    ) : (
-                      <Circle size={18} className="text-[#aaa]" />
-                    )}
-                    {selectedPhotos.size === foundPhotos.length
-                      ? "ยกเลิกทั้งหมด"
-                      : `เลือกทั้งหมด (${foundPhotos.length})`}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadSelected}
-                    disabled={selectedPhotos.size === 0 || downloadingAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
-                  >
-                    <Download size={14} />
-                    {downloadingAll && downloadProgress
-                      ? `กำลังดาวน์โหลด (${downloadProgress.current}/${downloadProgress.total})`
-                      : selectedPhotos.size > 0
-                        ? `ดาวน์โหลด (${selectedPhotos.size})`
-                        : "เลือกรูปก่อน"}
-                  </button>
-                </div>
-              </div>
             </>
           )}
         </section>
@@ -634,6 +606,42 @@ export default function DownloadDetailClient({
           </div>
         </section>
       )}
+      {/* Floating bottom bar — portal escapes transform stacking context */}
+      {mounted && step === "results" && foundPhotos.length > 0 &&
+        createPortal(
+          <div className="fixed bottom-0 left-0 right-0 z-9999 px-4 pb-4">
+            <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white/95 px-4 py-3 shadow-[0_8px_32px_rgba(120,58,12,0.18)] backdrop-blur">
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="inline-flex items-center gap-2 text-sm font-medium text-[#4d3a2e] transition hover:text-primary"
+              >
+                {selectedPhotos.size === foundPhotos.length ? (
+                  <CheckCircle2 size={18} className="text-primary" />
+                ) : (
+                  <Circle size={18} className="text-[#aaa]" />
+                )}
+                {selectedPhotos.size === foundPhotos.length
+                  ? "ยกเลิกทั้งหมด"
+                  : `เลือกทั้งหมด (${foundPhotos.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadSelected}
+                disabled={selectedPhotos.size === 0 || downloadingAll}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
+              >
+                <Download size={14} />
+                {downloadingAll && downloadProgress
+                  ? `กำลังดาวน์โหลด (${downloadProgress.current}/${downloadProgress.total})`
+                  : selectedPhotos.size > 0
+                    ? `ดาวน์โหลด (${selectedPhotos.size})`
+                    : "เลือกรูปก่อน"}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </Layout>
   );
 }
