@@ -104,7 +104,7 @@ export default function Navbar() {
       <div className="container mx-auto px-4 flex items-center h-14 md:h-16">
         <Link
           href="/"
-          className="inline-flex items-center relative h-18 w-20 hover:scale-115 transition-transform duration-300"
+          className="inline-flex items-center relative h-10 w-12 md:h-14 md:w-16 hover:scale-115 transition-transform duration-300"
           aria-label={t.navbar.logoHomeAria}
         >
           <Image
@@ -112,7 +112,7 @@ export default function Navbar() {
             alt={t.navbar.logoAlt}
             fill
             unoptimized
-            className="object-contain"
+            className="object-contain w-12 h-10 md:w-16 md:h-14"
             sizes="80px"
             priority
             loading="eager"

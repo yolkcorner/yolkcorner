@@ -386,42 +386,52 @@ export default function DownloadDetailClient({
   return (
     <Layout>
       {/* Back link */}
-      <div className="container mx-auto px-4 pt-16">
+      <div className="container mx-auto px-4 pt-14">
         <Link
           href="/download"
-          className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+          className="group inline-flex items-center gap-2 rounded-full bg-white/60 px-4 py-2 text-sm font-medium text-primary shadow-sm backdrop-blur transition hover:bg-white hover:shadow-md"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft
+            size={16}
+            className="transition-transform group-hover:-translate-x-0.5"
+          />
           {dt?.backToDownload}
         </Link>
       </div>
 
       {/* ── HOME ─────────────────────────────────────────── */}
       {step === "home" && (
-        <section className="flex items-start justify-center px-4 pb-6 pt-3">
+        <section className="flex items-start justify-center px-4 pb-10 pt-8">
           <div className="w-full max-w-sm">
-            <div className="overflow-hidden rounded-3xl border border-[#e3d2bf] bg-white shadow-[0_20px_60px_rgba(120,58,12,0.18)]">
-              <div className="flex items-center justify-center bg-linear-to-b from-[#fff4e8] to-[#ffe8cc] py-12">
-                <div className="relative flex h-36 w-36 items-center justify-center rounded-full bg-white shadow-[0_8px_30px_rgba(255,122,46,0.22)]">
+            {/* Card */}
+            <div className="overflow-hidden rounded-4xl bg-white shadow-[0_8px_40px_rgba(120,58,12,0.12),0_1.5px_4px_rgba(120,58,12,0.08)]">
+              {/* Gradient header with icon */}
+              <div className="relative flex items-center justify-center overflow-hidden bg-linear-to-br from-[#fff6ec] via-[#ffe8cc] to-[#ffd9a8] py-14">
+                {/* Decorative circles */}
+                <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/[0.07]" />
+                <div className="absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-primary/5" />
+                {/* Icon */}
+                <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-white shadow-[0_12px_40px_rgba(242,154,45,0.25)]">
                   <ScanFace
-                    className="h-20 w-20 text-primary"
-                    strokeWidth={1.2}
+                    className="h-16 w-16 text-primary"
+                    strokeWidth={1.4}
                   />
-                  <span className="absolute inset-0 animate-ping rounded-full border-2 border-primary/25" />
+                  <span className="absolute inset-0 animate-[ping_2.5s_ease-in-out_infinite] rounded-full border-2 border-primary/20" />
                 </div>
               </div>
-              <div className="px-6 pb-8 pt-5 text-center">
+              {/* Content */}
+              <div className="px-7 pb-9 pt-7 text-center">
                 {folderName && (
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[#a07858]">
+                  <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-primary/70">
                     {folderName}
                   </p>
                 )}
-                <h2 className="text-2xl font-bold leading-snug text-[#2b1a10]">
+                <h2 className="text-[1.4rem] font-bold leading-snug text-[#2b1a10]">
                   {lineMode
                     ? (dt?.lineFaceTitle ?? "เซลฟี่เพื่อรับรูปทาง LINE")
                     : (dt?.noLineScanTitle ?? "ถ่ายเซลฟี่เพื่อรับรูป")}
                 </h2>
-                <p className="mt-3 text-sm leading-relaxed text-[#6f5a4b]">
+                <p className="mx-auto mt-3 max-w-65 text-[13px] leading-relaxed text-[#8a7263]">
                   {lineMode
                     ? (dt?.lineFaceDesc ??
                       "จัดใบหน้าให้อยู่ในกรอบ และเราจะส่งรูปเข้า LINE อัตโนมัติ")
@@ -429,27 +439,32 @@ export default function DownloadDetailClient({
                       "จัดใบหน้าให้อยู่ในกรอบ เราจะค้นหารูปของคุณโดยอัตโนมัติ")}
                 </p>
                 {errorMsg && (
-                  <p className="mt-3 text-xs text-red-600">{errorMsg}</p>
+                  <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">
+                    {errorMsg}
+                  </p>
                 )}
-                {!lineMode && (
-                  <a
-                    href={`/api/line/auth?eventId=${encodeURIComponent(folderId)}`}
-                    className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#06C755] px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(6,199,85,0.38)] transition hover:brightness-95 active:scale-95"
+                {/* Buttons */}
+                <div className="mt-8 space-y-3">
+                  {!lineMode && (
+                    <a
+                      href={`/api/line/auth?eventId=${encodeURIComponent(folderId)}`}
+                      className="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#06C755] px-6 py-4 text-[15px] font-bold text-white shadow-[0_6px_24px_rgba(6,199,85,0.3)] transition-all hover:shadow-[0_8px_28px_rgba(6,199,85,0.4)] hover:brightness-[1.03] active:scale-[0.98]"
+                    >
+                      <MessageCircle className="h-5 w-5 transition-transform group-hover:scale-110" />
+                      {dt?.lineReceiveBtn ?? "รับรูปผ่าน LINE"}
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-primary px-6 py-4 text-[15px] font-bold text-white shadow-[0_6px_24px_rgba(242,154,45,0.3)] transition-all hover:shadow-[0_8px_28px_rgba(242,154,45,0.4)] hover:brightness-[1.03] active:scale-[0.98]"
                   >
-                    <MessageCircle className="h-5 w-5" />
-                    {dt?.lineReceiveBtn ?? "รับรูปผ่าน LINE"}
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className={`${lineMode ? "mt-7" : "mt-3"} inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(255,122,46,0.35)] transition hover:brightness-95 active:scale-95`}
-                >
-                  <Camera className="h-5 w-5" />
-                  {lineMode
-                    ? (dt?.noLineCaptureBtn ?? "ถ่ายเซลฟี่")
-                    : (dt?.noLineBtn ?? "ถ่ายเซลฟี่ดูรูปเอง")}
-                </button>
+                    <Camera className="h-5 w-5 transition-transform group-hover:scale-110" />
+                    {lineMode
+                      ? (dt?.noLineCaptureBtn ?? "ถ่ายเซลฟี่")
+                      : (dt?.noLineBtn ?? "ถ่ายเซลฟี่ดูรูปเอง")}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -473,9 +488,17 @@ export default function DownloadDetailClient({
       {/* ── SEARCHING ────────────────────────────────────── */}
       {step === "searching" && (
         <section className="flex min-h-[calc(100dvh-64px)] items-center justify-center">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#f3d6b8] border-t-primary" />
-            <p className="font-medium text-[#2b1a10]">{dt?.noLineSearching}</p>
+          <div className="flex flex-col items-center gap-5 text-center">
+            <div className="relative flex h-20 w-20 items-center justify-center">
+              <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-[#f3d6b8] border-t-primary" />
+              <ScanFace className="h-8 w-8 text-primary" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-[#2b1a10]">
+                {dt?.noLineSearching}
+              </p>
+              <p className="mt-1 text-sm text-[#8a7263]">กรุณารอสักครู่...</p>
+            </div>
           </div>
         </section>
       )}

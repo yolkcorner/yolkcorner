@@ -53,7 +53,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           <Link
             href="/"
-            className="flex items-center gap-3 text-center md:text-left relative h-14 w-14 hover:transform hover:scale-115 transition-transform duration-300"
+            className="flex items-center gap-3 text-center md:text-left relative h-10 w-10 hover:transform hover:scale-115 transition-transform duration-300"
           >
             <Image
               src={getCachebustedUrl(content.branding.logoUrl)}

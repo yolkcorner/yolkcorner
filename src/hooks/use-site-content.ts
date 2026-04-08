@@ -6,9 +6,15 @@ import {
   SiteContent,
 } from "@/lib/site-content-types";
 
+// Module-level cache so re-mounts (e.g. page transitions) don't flash
+// the default/old logo while the fetch is in-flight.
+let cachedContent: SiteContent | null = null;
+
 export function useSiteContent() {
-  const [content, setContent] = useState<SiteContent>(defaultSiteContent);
-  const [loading, setLoading] = useState(true);
+  const [content, setContent] = useState<SiteContent>(
+    cachedContent ?? defaultSiteContent,
+  );
+  const [loading, setLoading] = useState(!cachedContent);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -17,7 +23,8 @@ export function useSiteContent() {
       if (response.ok) {
         const data = await response.json();
         if (data?.content) {
-          setContent(data.content as SiteContent);
+          cachedContent = data.content as SiteContent;
+          setContent(cachedContent);
         }
       }
     } catch (error) {
