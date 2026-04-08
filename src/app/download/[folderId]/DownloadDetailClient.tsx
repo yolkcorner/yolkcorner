@@ -205,7 +205,9 @@ export default function DownloadDetailClient({
     null,
   );
 
-  React.useEffect(() => { setMounted(true); }, []);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Show URL-level errors from LINE OAuth callback (e.g. user denied, auth failed)
   React.useEffect(() => {
@@ -482,7 +484,7 @@ export default function DownloadDetailClient({
       {step === "results" && (
         <section className="container mx-auto px-4 py-10">
           {/* Header row */}
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-4">
             <h2 className="text-xl font-bold text-[#2b1a10]">
               {folderName && (
                 <span className="mr-2 text-sm font-normal text-[#a07858]">
@@ -491,14 +493,6 @@ export default function DownloadDetailClient({
               )}
               {dt?.noLineFoundTitle}
             </h2>
-            <button
-              type="button"
-              onClick={reset}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#e3d2bf] bg-white px-3 py-2 text-sm font-medium text-[#4d3a2e] transition hover:bg-[#fff4e8]"
-            >
-              <RefreshCw size={14} />
-              {dt?.noLineTryAgain}
-            </button>
           </div>
 
           {foundPhotos.length === 0 ? (
@@ -570,7 +564,6 @@ export default function DownloadDetailClient({
                   );
                 })}
               </div>
-
             </>
           )}
         </section>
@@ -607,7 +600,9 @@ export default function DownloadDetailClient({
         </section>
       )}
       {/* Floating bottom bar — portal escapes transform stacking context */}
-      {mounted && step === "results" && foundPhotos.length > 0 &&
+      {mounted &&
+        step === "results" &&
+        foundPhotos.length > 0 &&
         createPortal(
           <div className="fixed bottom-0 left-0 right-0 z-9999 px-4 pb-4">
             <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white/95 px-4 py-3 shadow-[0_8px_32px_rgba(120,58,12,0.18)] backdrop-blur">
