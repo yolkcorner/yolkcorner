@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   Camera,
   Download,
-  MessageCircle,
   RefreshCw,
   ScanFace,
   X,
@@ -16,7 +15,7 @@ import Layout from "@/components/Layout";
 import { useLang } from "@/lib/i18n";
 
 type Photo = { previewUrl: string; downloadUrl: string; name: string };
-type Step = "home" | "camera" | "searching" | "results" | "line-sent";
+type Step = "home" | "camera" | "searching" | "results";
 
 // ─── CameraView ───────────────────────────────────────────────────────────────
 // Separate component so it has its own mount lifecycle.
@@ -74,7 +73,9 @@ function CameraView({
         <X size={20} />
       </button>
 
-      <p className="mb-4 text-sm font-medium text-white/80">{instructionText}</p>
+      <p className="mb-4 text-sm font-medium text-white/80">
+        {instructionText}
+      </p>
 
       <div className="relative">
         <video
@@ -151,33 +152,36 @@ async function downloadPhoto(photo: Photo) {
 export default function DownloadDetailClient({
   folderId,
   folderName,
-  mode,
 }: {
   folderId: string;
   folderName?: string;
-  mode?: string;
 }) {
-  const lineMode = mode === "line";
   const { t } = useLang();
 
   const [step, setStep] = React.useState<Step>("home");
   const [errorMsg, setErrorMsg] = React.useState("");
   const [foundPhotos, setFoundPhotos] = React.useState<Photo[]>([]);
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
-  const [lineSentCount, setLineSentCount] = React.useState(0);
-  const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(null);
+  const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(
+    null,
+  );
 
-  const stopCamera = React.useCallback((stream?: MediaStream | null) => {
-    const s = stream ?? cameraStream;
-    if (s) s.getTracks().forEach((t) => t.stop());
-    setCameraStream(null);
-  }, [cameraStream]);
+  const stopCamera = React.useCallback(
+    (stream?: MediaStream | null) => {
+      const s = stream ?? cameraStream;
+      if (s) s.getTracks().forEach((t) => t.stop());
+      setCameraStream(null);
+    },
+    [cameraStream],
+  );
 
   const startCamera = React.useCallback(async () => {
     setErrorMsg("");
 
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setErrorMsg("เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง กรุณาใช้ Chrome หรือ Safari");
+      setErrorMsg(
+        "เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง กรุณาใช้ Chrome หรือ Safari",
+      );
       return;
     }
 
@@ -206,50 +210,54 @@ export default function DownloadDetailClient({
     setStep("camera");
   }, []);
 
-  const handleBlob = React.useCallback(async (blob: Blob) => {
-    // Stop camera and move to searching while uploading selfie
-    setCameraStream((s) => { if (s) s.getTracks().forEach((t) => t.stop()); return null; });
-    setStep("searching");
+  const handleBlob = React.useCallback(
+    async (blob: Blob) => {
+      setCameraStream((s) => {
+        if (s) s.getTracks().forEach((t) => t.stop());
+        return null;
+      });
+      setStep("searching");
 
-    const formData = new FormData();
-    formData.append("selfie", blob, "selfie.jpg");
-    formData.append("eventId", folderId);
+      const formData = new FormData();
+      formData.append("selfie", blob, "selfie.jpg");
+      formData.append("eventId", folderId);
 
-    if (lineMode) {
       try {
-        const res = await fetch("/api/face/search", { method: "POST", body: formData });
+        const res = await fetch("/api/face/browse", {
+          method: "POST",
+          body: formData,
+        });
         const data = await res.json();
-        if (!res.ok) { setErrorMsg(data?.error || "เกิดข้อผิดพลาด"); setStep("home"); return; }
-        setLineSentCount(data.found ?? 0);
-        setStep("line-sent");
-      } catch {
-        setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
-        setStep("home");
-      }
-    } else {
-      try {
-        const res = await fetch("/api/face/browse", { method: "POST", body: formData });
-        const data = await res.json();
-        if (!res.ok) { setErrorMsg(data?.error || "เกิดข้อผิดพลาด"); setStep("home"); return; }
+        if (!res.ok) {
+          setErrorMsg(data?.error || "เกิดข้อผิดพลาด");
+          setStep("home");
+          return;
+        }
         setFoundPhotos(data.photos ?? []);
         setStep("results");
       } catch {
         setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
         setStep("home");
       }
-    }
-  }, [folderId, lineMode]);
+    },
+    [folderId],
+  );
 
   const reset = () => {
     setStep("home");
     setFoundPhotos([]);
     setErrorMsg("");
-    setLineSentCount(0);
   };
 
   const handleDownloadPhoto = async (photo: Photo) => {
     setDownloadingId(photo.name);
-    try { await downloadPhoto(photo); } catch { /* silent */ } finally { setDownloadingId(null); }
+    try {
+      await downloadPhoto(photo);
+    } catch {
+      /* silent */
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const dt = t?.downloadDetail;
@@ -288,42 +296,23 @@ export default function DownloadDetailClient({
                   </p>
                 )}
                 <h2 className="text-2xl font-bold leading-snug text-[#2b1a10]">
-                  {dt?.lineFaceTitle}
+                  {dt?.noLineScanTitle ?? "ถ่ายเซลฟี่เพื่อรับรูป"}
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-[#6f5a4b]">
-                  {dt?.lineFaceDesc}
+                  {dt?.noLineScanDesc ??
+                    "จัดใบหน้าให้อยู่ในกรอบ เราจะค้นหารูปของคุณโดยอัตโนมัติ"}
                 </p>
                 {errorMsg && (
                   <p className="mt-3 text-xs text-red-600">{errorMsg}</p>
                 )}
-                {!lineMode && (
-                  <a
-                    href={`/api/line/auth?eventId=${encodeURIComponent(folderId)}`}
-                    className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#06C755] px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(6,199,85,0.38)] transition hover:brightness-95 active:scale-95"
-                  >
-                    <MessageCircle className="h-5 w-5" />
-                    {dt?.lineReceiveBtn}
-                  </a>
-                )}
-                {lineMode ? (
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(255,122,46,0.35)] transition hover:brightness-95 active:scale-95"
-                  >
-                    <Camera className="h-5 w-5" />
-                    {dt?.noLineCaptureBtn ?? "ถ่ายเซลฟี่"}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(255,122,46,0.35)] transition hover:brightness-95 active:scale-95"
-                  >
-                    <Camera className="h-5 w-5" />
-                    {dt?.noLineBtn}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-white shadow-[0_6px_20px_rgba(255,122,46,0.35)] transition hover:brightness-95 active:scale-95"
+                >
+                  <Camera className="h-5 w-5" />
+                  {dt?.noLineCaptureBtn ?? "ถ่ายเซลฟี่รับรูป"}
+                </button>
               </div>
             </div>
           </div>
@@ -420,37 +409,6 @@ export default function DownloadDetailClient({
               ))}
             </div>
           )}
-        </section>
-      )}
-
-      {/* ── LINE SENT ────────────────────────────────────── */}
-      {step === "line-sent" && (
-        <section className="flex min-h-[calc(100dvh-64px)] items-center justify-center px-4">
-          <div className="w-full max-w-sm text-center">
-            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#06C755]/15">
-              <MessageCircle className="h-12 w-12 text-[#06C755]" />
-            </div>
-            <h2 className="text-2xl font-bold text-[#2b1a10]">
-              {dt?.lineSentTitle ?? "ส่งรูปแล้ว!"}
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-[#6f5a4b]">
-              {lineSentCount > 0
-                ? (
-                    dt?.lineSentDesc ??
-                    `ส่ง ${lineSentCount} รูปไปยัง LINE ของคุณแล้ว`
-                  ).replace("{count}", String(lineSentCount))
-                : (dt?.lineSentNotFound ??
-                  "ไม่พบรูปที่ตรงกับใบหน้าของคุณในอีเวนต์นี้")}
-            </p>
-            <button
-              type="button"
-              onClick={reset}
-              className="mt-8 inline-flex items-center gap-2 rounded-2xl border border-[#e3d2bf] bg-white px-6 py-3 text-sm font-medium text-[#4d3a2e] transition hover:bg-[#fff4e8]"
-            >
-              <RefreshCw size={14} />
-              {dt?.noLineTryAgain ?? "ลองใหม่"}
-            </button>
-          </div>
         </section>
       )}
     </Layout>

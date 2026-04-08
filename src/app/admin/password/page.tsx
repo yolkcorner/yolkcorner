@@ -39,7 +39,9 @@ export default function AdminPasswordPage() {
   const isTh = lang === "th";
 
   const [albums, setAlbums] = useState<DownloadAlbum[]>([]);
-  const [managingAlbum, setManagingAlbum] = useState<DownloadAlbum | null>(null);
+  const [managingAlbum, setManagingAlbum] = useState<DownloadAlbum | null>(
+    null,
+  );
   const [openMenuAlbumId, setOpenMenuAlbumId] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [photos, setPhotos] = useState<DownloadPhoto[]>([]);
@@ -51,22 +53,30 @@ export default function AdminPasswordPage() {
   const [renameAlbumName, setRenameAlbumName] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [reindexingAlbumId, setReindexingAlbumId] = useState<string | null>(null);
+  const [reindexingAlbumId, setReindexingAlbumId] = useState<string | null>(
+    null,
+  );
 
   const loadAlbumPhotos = async (albumId: string) => {
     setPhotosLoading(true);
     try {
-      const res = await fetch(`/api/photos/${albumId}?pageSize=100`, { cache: "no-store" });
+      const res = await fetch(`/api/photos/${albumId}?pageSize=100`, {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load photos");
       const files = Array.isArray(data?.files)
-        ? (data.files.filter((item: DownloadPhoto) => item.type === "image") as DownloadPhoto[])
+        ? (data.files.filter(
+            (item: DownloadPhoto) => item.type === "image",
+          ) as DownloadPhoto[])
         : [];
       setPhotos(files);
     } catch (error) {
       console.error("Failed to load album photos:", error);
       setPhotos([]);
-      setMessage(isTh ? "โหลดรูปภาพในอัลบัมไม่สำเร็จ" : "Failed to load album photos");
+      setMessage(
+        isTh ? "โหลดรูปภาพในอัลบัมไม่สำเร็จ" : "Failed to load album photos",
+      );
     } finally {
       setPhotosLoading(false);
     }
@@ -114,7 +124,9 @@ export default function AdminPasswordPage() {
     if (!managingAlbum || renamingAlbum) return;
     const nextName = renameAlbumName.trim();
     if (!nextName) {
-      setMessage(isTh ? "กรุณาระบุชื่ออัลบัมใหม่" : "Please enter a new album name");
+      setMessage(
+        isTh ? "กรุณาระบุชื่ออัลบัมใหม่" : "Please enter a new album name",
+      );
       return;
     }
     setRenamingAlbum(true);
@@ -123,7 +135,10 @@ export default function AdminPasswordPage() {
       const res = await fetch(`/api/photos/${managingAlbum.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "rename-album", targetAlbumName: nextName }),
+        body: JSON.stringify({
+          action: "rename-album",
+          targetAlbumName: nextName,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to rename album");
@@ -132,10 +147,14 @@ export default function AdminPasswordPage() {
       await refreshData();
       setManagingAlbum({ ...managingAlbum, id: newAlbumId, name: nextName });
       await loadAlbumPhotos(newAlbumId);
-      setMessage(isTh ? "เปลี่ยนชื่ออัลบัมเรียบร้อยแล้ว" : "Album renamed successfully");
+      setMessage(
+        isTh ? "เปลี่ยนชื่ออัลบัมเรียบร้อยแล้ว" : "Album renamed successfully",
+      );
     } catch (error) {
       console.error("Failed to rename album:", error);
-      setMessage(isTh ? "เปลี่ยนชื่ออัลบัมไม่สำเร็จ" : "Failed to rename album");
+      setMessage(
+        isTh ? "เปลี่ยนชื่ออัลบัมไม่สำเร็จ" : "Failed to rename album",
+      );
     } finally {
       setRenamingAlbum(false);
     }
@@ -190,7 +209,10 @@ export default function AdminPasswordPage() {
     setMessage("");
     try {
       const encoded = encodeURIComponent(photoId);
-      const res = await fetch(`/api/photos/${managingAlbum.id}?fileId=${encoded}`, { method: "DELETE" });
+      const res = await fetch(
+        `/api/photos/${managingAlbum.id}?fileId=${encoded}`,
+        { method: "DELETE" },
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to delete photo");
       setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
@@ -251,7 +273,9 @@ export default function AdminPasswordPage() {
               className="relative cursor-pointer overflow-hidden rounded-2xl border border-white/70 bg-white/80 p-4 shadow-[0_12px_30px_rgba(120,58,12,0.12)] backdrop-blur transition hover:bg-white/90"
               role="button"
               tabIndex={0}
-              onClick={() => { void handleOpenManagePhotos(album); }}
+              onClick={() => {
+                void handleOpenManagePhotos(album);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -264,7 +288,9 @@ export default function AdminPasswordPage() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setOpenMenuAlbumId((prev) => prev === album.id ? null : album.id);
+                    setOpenMenuAlbumId((prev) =>
+                      prev === album.id ? null : album.id,
+                    );
                   }}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#e5d3be] bg-[#fff4e8] text-[#5b3f2c] transition hover:bg-[#ffe6cf]"
                   aria-label={isTh ? "เปิดเมนู" : "Open menu"}
@@ -275,7 +301,10 @@ export default function AdminPasswordPage() {
                   <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl border border-[#ead6bf] bg-white shadow-[0_16px_34px_rgba(120,58,12,0.18)]">
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); void handleOpenManagePhotos(album); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleOpenManagePhotos(album);
+                      }}
                       className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-[#5b3f2c] transition hover:bg-[#fff3e5]"
                     >
                       <Images className="h-4 w-4" />
@@ -284,13 +313,20 @@ export default function AdminPasswordPage() {
                     <button
                       type="button"
                       disabled={reindexingAlbumId === album.id}
-                      onClick={(e) => { e.stopPropagation(); void handleReindex(album); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleReindex(album);
+                      }}
                       className="flex w-full items-center gap-2 border-t border-[#f1e4d5] px-3 py-2.5 text-left text-sm text-[#5b3f2c] transition hover:bg-[#fff3e5] disabled:opacity-60"
                     >
                       <ScanFace className="h-4 w-4" />
                       {reindexingAlbumId === album.id
-                        ? (isTh ? "กำลัง Re-index..." : "Re-indexing...")
-                        : (isTh ? "Re-index ใบหน้า" : "Re-index Faces")}
+                        ? isTh
+                          ? "กำลัง Re-index..."
+                          : "Re-indexing..."
+                        : isTh
+                          ? "Re-index ใบหน้า"
+                          : "Re-index Faces"}
                     </button>
                     <button
                       type="button"
@@ -329,7 +365,10 @@ export default function AdminPasswordPage() {
           <div className="relative w-full max-w-6xl overflow-hidden rounded-3xl border border-[#f3e1cc] bg-white/95 p-5 shadow-[0_20px_70px_rgba(120,58,12,0.24)] backdrop-blur-xl md:p-6">
             <button
               type="button"
-              onClick={() => { setManagingAlbum(null); setPhotos([]); }}
+              onClick={() => {
+                setManagingAlbum(null);
+                setPhotos([]);
+              }}
               className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e3d2bf] bg-[#fff4e8] text-[#5b3f2c] transition hover:bg-[#ffe6cf]"
               aria-label={isTh ? "ปิด" : "Close"}
             >
@@ -338,7 +377,8 @@ export default function AdminPasswordPage() {
 
             <div className="mb-5 pr-12">
               <h3 className="text-xl font-bold text-[#2b1a10] md:text-2xl">
-                {isTh ? "จัดการรูปในอัลบัม" : "Manage Album Photos"}: {managingAlbum.name}
+                {isTh ? "จัดการรูปในอัลบัม" : "Manage Album Photos"}:{" "}
+                {managingAlbum.name}
               </h3>
               <p className="mt-1 text-sm text-[#6f5a4b]">
                 {isTh
@@ -366,8 +406,12 @@ export default function AdminPasswordPage() {
                   className="h-10 shrink-0 rounded-xl bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {renamingAlbum
-                    ? (isTh ? "กำลังบันทึก..." : "Saving...")
-                    : (isTh ? "บันทึก" : "Save")}
+                    ? isTh
+                      ? "กำลังบันทึก..."
+                      : "Saving..."
+                    : isTh
+                      ? "บันทึก"
+                      : "Save"}
                 </button>
               </div>
             </div>
@@ -395,8 +439,12 @@ export default function AdminPasswordPage() {
             ) : filteredPhotos.length === 0 ? (
               <div className="py-10 text-center text-sm text-[#6f5a4b]">
                 {photoSearch
-                  ? (isTh ? "ไม่พบรูปที่ตรงกับคำค้นหา" : "No photos match")
-                  : (isTh ? "ยังไม่มีรูปในอัลบัมนี้" : "No photos in this album")}
+                  ? isTh
+                    ? "ไม่พบรูปที่ตรงกับคำค้นหา"
+                    : "No photos match"
+                  : isTh
+                    ? "ยังไม่มีรูปในอัลบัมนี้"
+                    : "No photos in this album"}
               </div>
             ) : (
               <div className="max-h-[68vh] overflow-y-auto pr-1">
@@ -410,7 +458,9 @@ export default function AdminPasswordPage() {
                         src={
                           failedPhotoIds.includes(photo.id)
                             ? "/logo.png"
-                            : photo.previewUrl || photo.downloadUrl || "/logo.png"
+                            : photo.previewUrl ||
+                              photo.downloadUrl ||
+                              "/logo.png"
                         }
                         alt={photo.name}
                         width={320}
@@ -421,26 +471,39 @@ export default function AdminPasswordPage() {
                           const target = e.currentTarget as HTMLImageElement;
                           if (target.src.includes("/logo.png")) return;
                           setFailedPhotoIds((prev) =>
-                            prev.includes(photo.id) ? prev : [...prev, photo.id]
+                            prev.includes(photo.id)
+                              ? prev
+                              : [...prev, photo.id],
                           );
                         }}
                       />
                       <div className="space-y-2 p-3">
-                        <p className="truncate text-xs text-[#6a5445]" title={photo.name}>
+                        <p
+                          className="truncate text-xs text-[#6a5445]"
+                          title={photo.name}
+                        >
                           {photo.name}
                         </p>
                         <button
                           type="button"
                           onClick={() =>
-                            setConfirmState({ type: "delete-photo", album: managingAlbum, photo })
+                            setConfirmState({
+                              type: "delete-photo",
+                              album: managingAlbum,
+                              photo,
+                            })
                           }
                           disabled={deletingPhotoId === photo.id}
                           className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           {deletingPhotoId === photo.id
-                            ? (isTh ? "กำลังลบ..." : "Deleting...")
-                            : (isTh ? "ลบรูปนี้" : "Delete Photo")}
+                            ? isTh
+                              ? "กำลังลบ..."
+                              : "Deleting..."
+                            : isTh
+                              ? "ลบรูปนี้"
+                              : "Delete Photo"}
                         </button>
                       </div>
                     </div>
