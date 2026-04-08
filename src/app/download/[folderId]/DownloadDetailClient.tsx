@@ -145,23 +145,26 @@ async function downloadPhoto(photo: Photo) {
     return;
   }
   // For cross-origin URLs (e.g. R2 CDN), the `download` attribute is ignored
-  // by the browser. We must fetch the file as a blob first, then create a
-  // temporary object URL on the same origin to force a real download.
+  // and client-side blob fetch fails due to CORS. We proxy through our own
+  // API endpoint which sets Content-Disposition: attachment.
+  //
+  // Parse the R2 key from the public URL: strip the origin, the leading slash
+  // gives us the full R2 object key.
+  let key: string;
   try {
-    const res = await fetch(photo.downloadUrl, { cache: "no-store" });
-    const blob = await res.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = photo.name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+    const url = new URL(photo.downloadUrl);
+    key = url.pathname.replace(/^\//, ""); // e.g. "photobooth-events/folder/file.jpg"
   } catch {
-    // Fallback: open in new tab
-    window.open(photo.downloadUrl, "_blank", "noopener,noreferrer");
+    key = photo.downloadUrl;
   }
+
+  const proxyUrl = `/api/download-proxy?key=${encodeURIComponent(key)}&name=${encodeURIComponent(photo.name)}`;
+  const link = document.createElement("a");
+  link.href = proxyUrl;
+  link.download = photo.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 export default function DownloadDetailClient({
