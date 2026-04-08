@@ -4,12 +4,12 @@ import * as React from "react";
 import {
   ArrowLeft,
   Camera,
-  CheckSquare,
+  CheckCircle2,
+  Circle,
   Download,
   MessageCircle,
   RefreshCw,
   ScanFace,
-  Square,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -191,6 +191,13 @@ export default function DownloadDetailClient({
     new Set(),
   );
   const [downloadingAll, setDownloadingAll] = React.useState(false);
+  const [downloadProgress, setDownloadProgress] = React.useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+  const [downloadedPhotos, setDownloadedPhotos] = React.useState<Set<string>>(
+    new Set(),
+  );
   const [lineSentCount, setLineSentCount] = React.useState(0);
   const [cameraStream, setCameraStream] = React.useState<MediaStream | null>(
     null,
@@ -319,12 +326,15 @@ export default function DownloadDetailClient({
     setErrorMsg("");
     setLineSentCount(0);
     setSelectedPhotos(new Set());
+    setDownloadedPhotos(new Set());
+    setDownloadProgress(null);
   };
 
   const handleDownloadPhoto = async (photo: Photo) => {
     setDownloadingId(photo.name);
     try {
       await downloadPhoto(photo);
+      setDownloadedPhotos((prev) => new Set([...prev, photo.name]));
     } catch {
       /* silent */
     } finally {
@@ -353,12 +363,16 @@ export default function DownloadDetailClient({
     const toDownload = foundPhotos.filter((p) => selectedPhotos.has(p.name));
     if (!toDownload.length) return;
     setDownloadingAll(true);
-    for (const photo of toDownload) {
-      await downloadPhoto(photo);
+    setDownloadProgress({ current: 0, total: toDownload.length });
+    for (let i = 0; i < toDownload.length; i++) {
+      setDownloadProgress({ current: i + 1, total: toDownload.length });
+      await downloadPhoto(toDownload[i]);
+      setDownloadedPhotos((prev) => new Set([...prev, toDownload[i].name]));
       // small delay so browser doesn't block multiple simultaneous downloads
       await new Promise((r) => setTimeout(r, 400));
     }
     setDownloadingAll(false);
+    setDownloadProgress(null);
   };
 
   const dt = t?.downloadDetail;
@@ -489,38 +503,12 @@ export default function DownloadDetailClient({
             </p>
           ) : (
             <>
-              {/* Select all + Download selected bar */}
-              <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white px-4 py-3">
-                <button
-                  type="button"
-                  onClick={toggleSelectAll}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-[#4d3a2e] transition hover:text-primary"
-                >
-                  {selectedPhotos.size === foundPhotos.length ? (
-                    <CheckSquare size={18} className="text-primary" />
-                  ) : (
-                    <Square size={18} />
-                  )}
-                  {selectedPhotos.size === foundPhotos.length
-                    ? "ยกเลิกทั้งหมด"
-                    : `เลือกทั้งหมด (${foundPhotos.length})`}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadSelected}
-                  disabled={selectedPhotos.size === 0 || downloadingAll}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
-                >
-                  <Download size={14} />
-                  {downloadingAll
-                    ? "กำลังดาวน์โหลด..."
-                    : `ดาวน์โหลด${selectedPhotos.size > 0 ? ` (${selectedPhotos.size})` : "ที่เลือก"}`}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+              {/* Grid */}
+              <div className="grid grid-cols-2 gap-3 pb-24 md:grid-cols-3 xl:grid-cols-4">
                 {foundPhotos.map((photo) => {
                   const selected = selectedPhotos.has(photo.name);
+                  const isDownloading = downloadingId === photo.name;
+                  const downloaded = downloadedPhotos.has(photo.name);
                   return (
                     <div
                       key={photo.name}
@@ -538,37 +526,78 @@ export default function DownloadDetailClient({
                           className="object-cover"
                           sizes="(max-width: 640px) 50vw, 33vw"
                         />
-                        {/* Checkbox overlay */}
+                        {/* Circle checkbox overlay */}
                         <div className="absolute right-2 top-2">
                           {selected ? (
-                            <CheckSquare
+                            <CheckCircle2
                               size={22}
-                              className="rounded-md bg-white text-primary drop-shadow"
+                              className="bg-white rounded-full text-primary drop-shadow"
                             />
                           ) : (
-                            <Square
+                            <Circle
                               size={22}
-                              className="rounded-md bg-white/80 text-[#aaa] drop-shadow"
+                              className="bg-white/80 rounded-full text-[#aaa] drop-shadow"
                             />
                           )}
                         </div>
+                        {/* Downloaded badge */}
+                        {downloaded && (
+                          <div className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white">
+                            ✓ ดาวน์โหลดแล้ว
+                          </div>
+                        )}
                       </div>
                       <div className="p-3">
                         <button
                           type="button"
                           onClick={() => handleDownloadPhoto(photo)}
-                          disabled={downloadingId === photo.name}
+                          disabled={isDownloading}
                           className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
                         >
                           <Download size={13} />
-                          {downloadingId === photo.name
-                            ? (dt?.downloading ?? "...")
-                            : (t?.common?.download ?? "Download")}
+                          {isDownloading
+                            ? "กำลังดาวน์โหลด..."
+                            : downloaded
+                              ? "ดาวน์โหลดอีกครั้ง"
+                              : (t?.common?.download ?? "ดาวน์โหลด")}
                         </button>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Floating bottom bar */}
+              <div className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-2xl px-4 pb-4">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white/95 px-4 py-3 shadow-[0_8px_32px_rgba(120,58,12,0.18)] backdrop-blur">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-[#4d3a2e] transition hover:text-primary"
+                  >
+                    {selectedPhotos.size === foundPhotos.length ? (
+                      <CheckCircle2 size={18} className="text-primary" />
+                    ) : (
+                      <Circle size={18} className="text-[#aaa]" />
+                    )}
+                    {selectedPhotos.size === foundPhotos.length
+                      ? "ยกเลิกทั้งหมด"
+                      : `เลือกทั้งหมด (${foundPhotos.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSelected}
+                    disabled={selectedPhotos.size === 0 || downloadingAll}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
+                  >
+                    <Download size={14} />
+                    {downloadingAll && downloadProgress
+                      ? `กำลังดาวน์โหลด (${downloadProgress.current}/${downloadProgress.total})`
+                      : selectedPhotos.size > 0
+                        ? `ดาวน์โหลด (${selectedPhotos.size})`
+                        : "เลือกรูปก่อน"}
+                  </button>
+                </div>
               </div>
             </>
           )}
