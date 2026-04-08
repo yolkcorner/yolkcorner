@@ -19,6 +19,10 @@ export function buildLineAuthUrl(
     redirect_uri: redirectUri,
     state,
     scope: "profile",
+    // Show "Add friend" prompt during login so the user adds the OA
+    // automatically without a separate step. Requires the LINE Login
+    // channel to be linked to the Messaging API channel in LINE console.
+    bot_prompt: "aggressive",
   });
   return `${LINE_AUTH_BASE}/authorize?${params.toString()}`;
 }
