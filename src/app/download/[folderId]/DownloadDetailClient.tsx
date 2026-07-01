@@ -214,7 +214,9 @@ function Lightbox({
   React.useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, []);
 
   // Keyboard navigation
@@ -529,8 +531,10 @@ export default function DownloadDetailClient({
       const names = Object.keys(valid);
       if (names.length > 0) setDownloadedPhotos(new Set(names));
       localStorage.setItem(DOWNLOAD_STORAGE_KEY, JSON.stringify(valid));
-    } catch { /* ignore */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   React.useEffect(() => {
@@ -541,11 +545,17 @@ export default function DownloadDetailClient({
       const now = Date.now();
       let changed = false;
       for (const name of downloadedPhotos) {
-        if (!(name in existing)) { existing[name] = now; changed = true; }
+        if (!(name in existing)) {
+          existing[name] = now;
+          changed = true;
+        }
       }
-      if (changed) localStorage.setItem(DOWNLOAD_STORAGE_KEY, JSON.stringify(existing));
-    } catch { /* ignore */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      if (changed)
+        localStorage.setItem(DOWNLOAD_STORAGE_KEY, JSON.stringify(existing));
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [downloadedPhotos]);
 
   // Show URL-level errors from LINE OAuth callback (e.g. user denied, auth failed)
@@ -802,19 +812,32 @@ export default function DownloadDetailClient({
         const iosFiles: File[] = [];
         for (let i = 0; i < toDownload.length; i++) {
           setDownloadProgress({ current: i + 1, total: toDownload.length });
-          const res = await fetch(toDownload[i].downloadUrl, { cache: "no-store" });
+          const res = await fetch(toDownload[i].downloadUrl, {
+            cache: "no-store",
+          });
           const blob = await res.blob();
-          iosFiles.push(new File([blob], toDownload[i].name, { type: blob.type || "image/jpeg" }));
+          iosFiles.push(
+            new File([blob], toDownload[i].name, {
+              type: blob.type || "image/jpeg",
+            }),
+          );
         }
-        if (typeof navigator.canShare === "function" && navigator.canShare({ files: iosFiles })) {
+        if (
+          typeof navigator.canShare === "function" &&
+          navigator.canShare({ files: iosFiles })
+        ) {
           await navigator.share({ files: iosFiles });
-          setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
+          setDownloadedPhotos(
+            (prev) => new Set([...prev, ...toDownload.map((p) => p.name)]),
+          );
           setSelectedPhotos(new Set());
           setDownloadingAll(false);
           setDownloadProgress(null);
           return;
         }
-      } catch { /* fall through */ }
+      } catch {
+        /* fall through */
+      }
     }
     for (let i = 0; i < toDownload.length; i++) {
       setDownloadProgress({ current: i + 1, total: toDownload.length });
@@ -961,18 +984,29 @@ export default function DownloadDetailClient({
           setDownloadProgress({ current: i + 1, total: photos.length });
           const res = await fetch(photos[i].downloadUrl, { cache: "no-store" });
           const blob = await res.blob();
-          iosFiles.push(new File([blob], photos[i].name, { type: blob.type || "image/jpeg" }));
+          iosFiles.push(
+            new File([blob], photos[i].name, {
+              type: blob.type || "image/jpeg",
+            }),
+          );
         }
-        if (typeof navigator.canShare === "function" && navigator.canShare({ files: iosFiles })) {
+        if (
+          typeof navigator.canShare === "function" &&
+          navigator.canShare({ files: iosFiles })
+        ) {
           await navigator.share({ files: iosFiles });
-          setDownloadedPhotos((prev) => new Set([...prev, ...photos.map((p) => p.name)]));
+          setDownloadedPhotos(
+            (prev) => new Set([...prev, ...photos.map((p) => p.name)]),
+          );
           setSelectedPhotos(new Set());
           setGallerySelected(new Set());
           setDownloadingAll(false);
           setDownloadProgress(null);
           return;
         }
-      } catch { /* fall through */ }
+      } catch {
+        /* fall through */
+      }
     }
     for (let i = 0; i < photos.length; i++) {
       setDownloadProgress({ current: i + 1, total: photos.length });
@@ -1361,21 +1395,6 @@ export default function DownloadDetailClient({
                             ✓ ดาวน์โหลดแล้ว
                           </div>
                         )}
-                      </div>
-                      <div className="p-3">
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPhoto(photo)}
-                          disabled={isDownloading}
-                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
-                        >
-                          <Download size={13} />
-                          {isDownloading
-                            ? "กำลังดาวน์โหลด..."
-                            : downloaded
-                              ? "ดาวน์โหลดอีกครั้ง"
-                              : (t?.common?.download ?? "ดาวน์โหลด")}
-                        </button>
                       </div>
                     </div>
                   );
