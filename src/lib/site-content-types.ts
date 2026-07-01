@@ -264,6 +264,7 @@ export interface SiteContent {
   };
   openingModals: OpeningModalItem[];
   seo: SeoSettings;
+  faceRecognitionEnabled?: boolean;
   /**
    * Mapping of download albumId to password (plain 4-digit string or undefined)
    * Example: { "event-2026-03-25": "1234", ... }
@@ -524,5 +525,6 @@ export const defaultSiteContent: SiteContent = {
     allowIndexing: true,
     allowFollowing: true,
   },
+  faceRecognitionEnabled: true,
   downloadPasswords: {},
 };

@@ -6,12 +6,12 @@ import {
   resolveR2FileUrl,
 } from '@/lib/download-r2';
 import {
+  copyR2Object,
   deleteFromR2,
   deleteMultipleFromR2,
   getR2PublicUrlError,
   isR2Configured,
   listR2Folder,
-  uploadToR2,
 } from '@/lib/r2';
 import { verifyToken } from '@/lib/auth';
 import path from 'node:path';
@@ -56,18 +56,9 @@ const moveKeysBetweenAlbums = async (
   destinationPrefix: string,
 ) => {
   const destinationExistingKeys = new Set(await listR2Folder(destinationPrefix));
-  let moved = 0;
+  const copiedKeys: string[] = [];
 
   for (const sourceKey of sourceKeys) {
-    const sourceUrl = resolveR2FileUrl(sourceKey);
-    const upstream = await fetch(sourceUrl, { cache: 'no-store' });
-    if (!upstream.ok) {
-      throw new Error(`Failed to fetch source file: ${path.posix.basename(sourceKey)}`);
-    }
-
-    const contentType =
-      upstream.headers.get('content-type') || 'application/octet-stream';
-    const buffer = Buffer.from(await upstream.arrayBuffer());
     const fileName = path.posix.basename(sourceKey);
     const destinationKey = buildUniqueDestinationKey(
       destinationPrefix,
@@ -75,12 +66,15 @@ const moveKeysBetweenAlbums = async (
       destinationExistingKeys,
     );
 
-    await uploadToR2(buffer, destinationKey, contentType);
-    await deleteFromR2(sourceKey);
-    moved += 1;
+    await copyR2Object(sourceKey, destinationKey);
+    copiedKeys.push(sourceKey);
   }
 
-  return moved;
+  if (copiedKeys.length) {
+    await deleteMultipleFromR2(copiedKeys);
+  }
+
+  return copiedKeys.length;
 };
 
 export async function GET(
@@ -188,6 +182,7 @@ export async function GET(
       folderName: folderResult.folderName,
       files,
       nextPageToken: folderResult.nextPageToken,
+      totalCount: folderResult.totalCount,
     });
     response.headers.set('Cache-Control', 'no-store, max-age=0');
     return response;

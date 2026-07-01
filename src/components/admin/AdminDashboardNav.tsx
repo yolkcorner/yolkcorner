@@ -27,7 +27,7 @@ import { Lock as LockIcon } from "lucide-react";
 
 const adminItems = [
   {
-    href: "/admin/password",
+    href: "/admin/photobooth",
     labelTh: "การจัดการโฟโต้บูธ",
     labelEn: "Photo Booth Management",
     icon: LockIcon,

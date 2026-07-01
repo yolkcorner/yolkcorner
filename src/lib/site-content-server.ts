@@ -369,7 +369,12 @@ const writeRawContent = async (content: SiteContent) => {
 };
 
 export const readSiteContent = async (): Promise<SiteContent> => {
-  const raw = await readRawContent();
+  let raw: string;
+  try {
+    raw = await readRawContent();
+  } catch {
+    return defaultSiteContent;
+  }
 
   try {
     const parsed = JSON.parse(raw) as SiteContent;

@@ -1,0 +1,2 @@
+const fs = require('fs'); const ts = require('typescript'); const file = 'src/app/admin/password/page.tsx'; const text = fs.readFileSync(file,'utf8'); const sf = ts.createSourceFile(file,text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX); console.log(sf.parseDiagnostics.length); sf.parseDiagnostics.forEach(d=>{ const pos = sf.getLineAndCharacterOfPosition(d.start); console.log(String(d.messageText).replace(/
+/g,' '), 'line', pos.line+1, 'char', pos.character+1); });

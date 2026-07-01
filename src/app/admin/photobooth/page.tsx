@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import AdminSectionLayout from "@/components/admin/AdminSectionLayout";
 import { useLang } from "@/lib/i18n";
+import { SiteContent } from "@/lib/site-content-types";
 import {
   EllipsisVertical,
   Images,
@@ -48,6 +49,12 @@ export default function AdminPasswordPage() {
   const [failedPhotoIds, setFailedPhotoIds] = useState<string[]>([]);
   const [photoSearch, setPhotoSearch] = useState("");
   const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosLoadingMore, setPhotosLoadingMore] = useState(false);
+  const [photoNextPageToken, setPhotoNextPageToken] = useState<string | null>(
+    null,
+  );
+  const [hasMorePhotos, setHasMorePhotos] = useState(false);
+  const [totalPhotoCount, setTotalPhotoCount] = useState(0);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [renamingAlbum, setRenamingAlbum] = useState(false);
   const [renameAlbumName, setRenameAlbumName] = useState("");
@@ -56,11 +63,90 @@ export default function AdminPasswordPage() {
   const [reindexingAlbumId, setReindexingAlbumId] = useState<string | null>(
     null,
   );
+  const [siteContent, setSiteContent] = useState<SiteContent | null>(null);
+  const [faceRecognitionEnabled, setFaceRecognitionEnabled] = useState(true);
+  const [savingContent, setSavingContent] = useState(false);
 
-  const loadAlbumPhotos = async (albumId: string) => {
-    setPhotosLoading(true);
+  const loadSiteContent = async () => {
     try {
-      const res = await fetch(`/api/photos/${albumId}?pageSize=100`, {
+      const res = await fetch("/api/content", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load content");
+      const loaded = data.content as SiteContent;
+      setSiteContent(loaded);
+      setFaceRecognitionEnabled(loaded.faceRecognitionEnabled !== false);
+    } catch (error) {
+      console.error("Failed to load site content:", error);
+    }
+  };
+
+  useEffect(() => {
+    void loadSiteContent();
+  }, []);
+
+  const handleSaveFaceRecognition = async () => {
+    if (!siteContent) return;
+    setSavingContent(true);
+    setMessage("");
+    try {
+      const nextContent: SiteContent = {
+        ...siteContent,
+        faceRecognitionEnabled,
+      };
+
+      const res = await fetch("/api/content", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: nextContent }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to save content");
+      const saved = data.content as SiteContent;
+      setSiteContent(saved);
+      setFaceRecognitionEnabled(saved.faceRecognitionEnabled !== false);
+      setMessage(
+        isTh
+          ? "บันทึกการตั้งค่าการจดจำใบหน้าเรียบร้อยแล้ว"
+          : "Face recognition setting saved successfully",
+      );
+    } catch (error) {
+      console.error("Failed to save face recognition setting:", error);
+      setMessage(
+        isTh
+          ? "บันทึกการตั้งค่าไม่สำเร็จ"
+          : "Failed to save face recognition setting",
+      );
+    } finally {
+      setSavingContent(false);
+    }
+  };
+
+  const handleToggleFaceRecognition = () => {
+    setFaceRecognitionEnabled((prev) => !prev);
+  };
+
+  const loadAlbumPhotos = async (
+    albumId: string,
+    pageToken?: string | null,
+    append = false,
+  ) => {
+    if (!append) {
+      setPhotosLoading(true);
+      setPhotos([]);
+      setPhotoNextPageToken(null);
+      setHasMorePhotos(false);
+      setTotalPhotoCount(0);
+    } else {
+      setPhotosLoadingMore(true);
+    }
+
+    try {
+      const query = new URLSearchParams({ pageSize: "50" });
+      if (pageToken) {
+        query.set("pageToken", pageToken);
+      }
+
+      const res = await fetch(`/api/photos/${albumId}?${query.toString()}`, {
         cache: "no-store",
       });
       const data = await res.json();
@@ -70,16 +156,38 @@ export default function AdminPasswordPage() {
             (item: DownloadPhoto) => item.type === "image",
           ) as DownloadPhoto[])
         : [];
-      setPhotos(files);
+
+      setPhotos((prev) => (append ? [...prev, ...files] : files));
+      setPhotoNextPageToken(data?.nextPageToken ?? null);
+      setHasMorePhotos(Boolean(data?.nextPageToken));
+      setTotalPhotoCount(Number(data?.totalCount ?? files.length));
     } catch (error) {
       console.error("Failed to load album photos:", error);
-      setPhotos([]);
-      setMessage(
-        isTh ? "โหลดรูปภาพในอัลบัมไม่สำเร็จ" : "Failed to load album photos",
-      );
+      if (!append) {
+        setPhotos([]);
+        setMessage(
+          isTh ? "โหลดรูปภาพในอัลบัมไม่สำเร็จ" : "Failed to load album photos",
+        );
+      }
     } finally {
-      setPhotosLoading(false);
+      if (!append) {
+        setPhotosLoading(false);
+      }
+      setPhotosLoadingMore(false);
     }
+  };
+
+  const loadMoreAlbumPhotos = async () => {
+    if (
+      !managingAlbum ||
+      photosLoading ||
+      photosLoadingMore ||
+      !photoNextPageToken
+    ) {
+      return;
+    }
+
+    await loadAlbumPhotos(managingAlbum.id, photoNextPageToken, true);
   };
 
   const refreshData = async () => {
@@ -118,6 +226,17 @@ export default function AdminPasswordPage() {
     setFailedPhotoIds([]);
     setMessage("");
     await loadAlbumPhotos(album.id);
+  };
+
+  const handlePhotosScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const container = event.currentTarget;
+    const nearBottom =
+      container.scrollTop + container.clientHeight >=
+      container.scrollHeight - 220;
+
+    if (nearBottom) {
+      void loadMoreAlbumPhotos();
+    }
   };
 
   const handleRenameAlbum = async () => {
@@ -235,20 +354,62 @@ export default function AdminPasswordPage() {
       }
     >
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(120,58,12,0.1)] backdrop-blur">
-        <p className="text-sm text-[#6f5a4b]">
-          {isTh
-            ? "จัดการอัลบัม ลบอัลบัม และลบรูปภาพรายรูปได้จากหน้านี้"
-            : "Manage albums, delete albums, and delete individual photos from this page."}
-        </p>
-        <button
-          type="button"
-          onClick={refreshData}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-xl border border-[#e3d2bf] bg-[#fff4e8] px-3 py-2 text-sm font-medium text-[#4d3a2e] transition hover:bg-[#ffe6cf] disabled:opacity-60"
-        >
-          <RefreshCw className="h-4 w-4" />
-          {isTh ? "รีเฟรชข้อมูล" : "Refresh data"}
-        </button>
+        <div className="min-w-0">
+          <p className="text-sm text-[#6f5a4b]">
+            {isTh
+              ? "จัดการอัลบัม ลบอัลบัม และลบรูปภาพรายรูปได้จากหน้านี้"
+              : "Manage albums, delete albums, and delete individual photos from this page."}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-[#6f5a4b]">
+              {isTh ? "เปิดการใช้งานการจดจำใบหน้า" : "Enable face recognition"}
+            </span>
+            <button
+              type="button"
+              onClick={handleToggleFaceRecognition}
+              className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${faceRecognitionEnabled ? "bg-primary" : "bg-slate-300"}`}
+              aria-pressed={faceRecognitionEnabled}
+            >
+              <span
+                className={`inline-block h-6 w-6 transform rounded-full bg-white transition ${faceRecognitionEnabled ? "translate-x-6" : "translate-x-0"}`}
+              />
+            </button>
+            <span className="text-sm text-[#6f5a4b]">
+              {faceRecognitionEnabled
+                ? isTh
+                  ? "กำลังเปิดใช้งาน"
+                  : "Enabled"
+                : isTh
+                  ? "ปิดใช้งาน"
+                  : "Disabled"}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={refreshData}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-[#e3d2bf] bg-[#fff4e8] px-3 py-2 text-sm font-medium text-[#4d3a2e] transition hover:bg-[#ffe6cf] disabled:opacity-60"
+          >
+            <RefreshCw className="h-4 w-4" />
+            {isTh ? "รีเฟรชข้อมูล" : "Refresh data"}
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveFaceRecognition}
+            disabled={!siteContent || savingContent}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-white transition hover:brightness-95 disabled:opacity-60"
+          >
+            {savingContent
+              ? isTh
+                ? "กำลังบันทึก..."
+                : "Saving..."
+              : isTh
+                ? "บันทึกการตั้งค่า"
+                : "Save setting"}
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -361,13 +522,16 @@ export default function AdminPasswordPage() {
       </div>
 
       {managingAlbum && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-6xl overflow-hidden rounded-3xl border border-[#f3e1cc] bg-white/95 p-5 shadow-[0_20px_70px_rgba(120,58,12,0.24)] backdrop-blur-xl md:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-6xl max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden rounded-3xl border border-[#f3e1cc] bg-white/95 p-5 shadow-[0_20px_70px_rgba(120,58,12,0.24)] backdrop-blur-xl md:p-6">
             <button
               type="button"
               onClick={() => {
                 setManagingAlbum(null);
                 setPhotos([]);
+                setPhotoNextPageToken(null);
+                setHasMorePhotos(false);
+                setTotalPhotoCount(0);
               }}
               className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e3d2bf] bg-[#fff4e8] text-[#5b3f2c] transition hover:bg-[#ffe6cf]"
               aria-label={isTh ? "ปิด" : "Close"}
@@ -375,142 +539,161 @@ export default function AdminPasswordPage() {
               <X className="h-4 w-4" />
             </button>
 
-            <div className="mb-5 pr-12">
-              <h3 className="text-xl font-bold text-[#2b1a10] md:text-2xl">
-                {isTh ? "จัดการรูปในอัลบัม" : "Manage Album Photos"}:{" "}
-                {managingAlbum.name}
-              </h3>
-              <p className="mt-1 text-sm text-[#6f5a4b]">
-                {isTh
-                  ? `${photos.length} รูป | พบ ${filteredPhotos.length} รูป`
-                  : `${photos.length} photos | ${filteredPhotos.length} matched`}
-              </p>
-            </div>
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="mb-5 pr-12">
+                <h3 className="text-xl font-bold text-[#2b1a10] md:text-2xl">
+                  {isTh ? "จัดการรูปในอัลบัม" : "Manage Album Photos"}:{" "}
+                  {managingAlbum.name}
+                </h3>
+                <p className="mt-1 text-sm text-[#6f5a4b]">
+                  {isTh
+                    ? `กำลังแสดง ${photos.length}/${totalPhotoCount || photos.length} รูป | พบ ${filteredPhotos.length} รูป`
+                    : `Showing ${photos.length}/${totalPhotoCount || photos.length} photos | ${filteredPhotos.length} matched`}
+                </p>
+              </div>
 
-            <div className="mb-4 rounded-2xl border border-[#ead7c2] bg-[#fff7ee] p-3">
-              <p className="mb-2 text-xs font-semibold tracking-[0.08em] text-[#8a6347] uppercase">
-                {isTh ? "เปลี่ยนชื่ออัลบัม" : "Rename album"}
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={renameAlbumName}
-                  onChange={(e) => setRenameAlbumName(e.target.value)}
-                  placeholder={isTh ? "ชื่ออัลบัมใหม่" : "New album name"}
-                  className="h-10 w-full rounded-xl border border-[#e3d2bf] bg-white px-3 text-sm text-[#3f2b1d] outline-none focus:border-[#ff7a2e] focus:ring-2 focus:ring-[#ff7a2e]/20"
-                />
-                <button
-                  type="button"
-                  onClick={handleRenameAlbum}
-                  disabled={renamingAlbum || !renameAlbumName.trim()}
-                  className="h-10 shrink-0 rounded-xl bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {renamingAlbum
-                    ? isTh
-                      ? "กำลังบันทึก..."
-                      : "Saving..."
-                    : isTh
-                      ? "บันทึก"
-                      : "Save"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mb-4 rounded-2xl border border-[#ead7c2] bg-[#fff7ee] p-3">
-              <label className="mb-2 block text-xs font-semibold tracking-[0.08em] text-[#8a6347] uppercase">
-                {isTh ? "ค้นหารูปเพื่อลบ" : "Search photos to delete"}
-              </label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a27e63]" />
-                <input
-                  type="text"
-                  value={photoSearch}
-                  onChange={(e) => setPhotoSearch(e.target.value)}
-                  placeholder={isTh ? "พิมพ์ชื่อไฟล์" : "Type filename"}
-                  className="h-10 w-full rounded-xl border border-[#e3d2bf] bg-white px-10 text-sm text-[#3f2b1d] outline-none focus:border-[#ff7a2e] focus:ring-2 focus:ring-[#ff7a2e]/20"
-                />
-              </div>
-            </div>
-
-            {photosLoading ? (
-              <div className="py-10 text-center text-sm text-[#6f5a4b]">
-                {isTh ? "กำลังโหลดรูปภาพ..." : "Loading photos..."}
-              </div>
-            ) : filteredPhotos.length === 0 ? (
-              <div className="py-10 text-center text-sm text-[#6f5a4b]">
-                {photoSearch
-                  ? isTh
-                    ? "ไม่พบรูปที่ตรงกับคำค้นหา"
-                    : "No photos match"
-                  : isTh
-                    ? "ยังไม่มีรูปในอัลบัมนี้"
-                    : "No photos in this album"}
-              </div>
-            ) : (
-              <div className="max-h-[68vh] overflow-y-auto pr-1">
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                  {filteredPhotos.map((photo) => (
-                    <div
-                      key={photo.id}
-                      className="overflow-hidden rounded-xl border border-[#efddca] bg-[#fff7ee]"
-                    >
-                      <Image
-                        src={
-                          failedPhotoIds.includes(photo.id)
-                            ? "/logo.png"
-                            : photo.previewUrl ||
-                              photo.downloadUrl ||
-                              "/logo.png"
-                        }
-                        alt={photo.name}
-                        width={320}
-                        height={320}
-                        className="aspect-square w-full object-cover"
-                        unoptimized
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          if (target.src.includes("/logo.png")) return;
-                          setFailedPhotoIds((prev) =>
-                            prev.includes(photo.id)
-                              ? prev
-                              : [...prev, photo.id],
-                          );
-                        }}
-                      />
-                      <div className="space-y-2 p-3">
-                        <p
-                          className="truncate text-xs text-[#6a5445]"
-                          title={photo.name}
-                        >
-                          {photo.name}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setConfirmState({
-                              type: "delete-photo",
-                              album: managingAlbum,
-                              photo,
-                            })
-                          }
-                          disabled={deletingPhotoId === photo.id}
-                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {deletingPhotoId === photo.id
-                            ? isTh
-                              ? "กำลังลบ..."
-                              : "Deleting..."
-                            : isTh
-                              ? "ลบรูปนี้"
-                              : "Delete Photo"}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+              <div className="mb-4 rounded-2xl border border-[#ead7c2] bg-[#fff7ee] p-3">
+                <p className="mb-2 text-xs font-semibold tracking-[0.08em] text-[#8a6347] uppercase">
+                  {isTh ? "เปลี่ยนชื่ออัลบัม" : "Rename album"}
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={renameAlbumName}
+                    onChange={(e) => setRenameAlbumName(e.target.value)}
+                    placeholder={isTh ? "ชื่ออัลบัมใหม่" : "New album name"}
+                    className="h-10 w-full rounded-xl border border-[#e3d2bf] bg-white px-3 text-sm text-[#3f2b1d] outline-none focus:border-[#ff7a2e] focus:ring-2 focus:ring-[#ff7a2e]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRenameAlbum}
+                    disabled={renamingAlbum || !renameAlbumName.trim()}
+                    className="h-10 shrink-0 rounded-xl bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {renamingAlbum
+                      ? isTh
+                        ? "กำลังบันทึก..."
+                        : "Saving..."
+                      : isTh
+                        ? "บันทึก"
+                        : "Save"}
+                  </button>
                 </div>
               </div>
-            )}
+
+              <div className="mb-4 rounded-2xl border border-[#ead7c2] bg-[#fff7ee] p-3">
+                <label className="mb-2 block text-xs font-semibold tracking-[0.08em] text-[#8a6347] uppercase">
+                  {isTh ? "ค้นหารูปเพื่อลบ" : "Search photos to delete"}
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a27e63]" />
+                  <input
+                    type="text"
+                    value={photoSearch}
+                    onChange={(e) => setPhotoSearch(e.target.value)}
+                    placeholder={isTh ? "พิมพ์ชื่อไฟล์" : "Type filename"}
+                    className="h-10 w-full rounded-xl border border-[#e3d2bf] bg-white px-10 text-sm text-[#3f2b1d] outline-none focus:border-[#ff7a2e] focus:ring-2 focus:ring-[#ff7a2e]/20"
+                  />
+                </div>
+              </div>
+
+              {photosLoading ? (
+                <div className="flex-1 min-h-0 flex items-center justify-center text-center text-sm text-[#6f5a4b]">
+                  {isTh ? "กำลังโหลดรูปภาพ..." : "Loading photos..."}
+                </div>
+              ) : filteredPhotos.length === 0 ? (
+                <div className="flex-1 min-h-0 flex items-center justify-center text-center text-sm text-[#6f5a4b]">
+                  {photoSearch
+                    ? isTh
+                      ? "ไม่พบรูปที่ตรงกับคำค้นหา"
+                      : "No photos match"
+                    : isTh
+                      ? "ยังไม่มีรูปในอัลบัมนี้"
+                      : "No photos in this album"}
+                </div>
+              ) : (
+                <div
+                  className="flex-1 min-h-0 overflow-y-auto pr-1"
+                  onScroll={handlePhotosScroll}
+                >
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                    {filteredPhotos.map((photo) => (
+                      <div
+                        key={photo.id}
+                        className="overflow-hidden rounded-xl border border-[#efddca] bg-[#fff7ee]"
+                      >
+                        <Image
+                          src={
+                            failedPhotoIds.includes(photo.id)
+                              ? "/logo.png"
+                              : photo.previewUrl ||
+                                photo.downloadUrl ||
+                                "/logo.png"
+                          }
+                          alt={photo.name}
+                          width={320}
+                          height={320}
+                          className="aspect-square w-full object-cover"
+                          unoptimized
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (target.src.includes("/logo.png")) return;
+                            setFailedPhotoIds((prev) =>
+                              prev.includes(photo.id)
+                                ? prev
+                                : [...prev, photo.id],
+                            );
+                          }}
+                        />
+                        <div className="space-y-2 p-3">
+                          <p
+                            className="truncate text-xs text-[#6a5445]"
+                            title={photo.name}
+                          >
+                            {photo.name}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfirmState({
+                                type: "delete-photo",
+                                album: managingAlbum,
+                                photo,
+                              })
+                            }
+                            disabled={deletingPhotoId === photo.id}
+                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {deletingPhotoId === photo.id
+                              ? isTh
+                                ? "กำลังลบ..."
+                                : "Deleting..."
+                              : isTh
+                                ? "ลบรูปนี้"
+                                : "Delete Photo"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {photosLoadingMore && (
+                    <div className="mt-4 text-center text-sm text-[#6f5a4b]">
+                      {isTh ? "กำลังโหลดรูปเพิ่ม..." : "Loading more photos..."}
+                    </div>
+                  )}
+
+                  {!photosLoadingMore && hasMorePhotos && (
+                    <div className="mt-4 text-center text-sm text-[#8a6347]">
+                      {isTh
+                        ? "เลื่อนลงเพื่อดูภาพเพิ่มเติม"
+                        : "Scroll down to load more photos"}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

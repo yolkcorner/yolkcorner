@@ -121,10 +121,16 @@ export async function listDownloadPhotos(
   folderId: string,
   pageSize: number,
   pageToken?: string,
-): Promise<{ folderName: string; files: DownloadPhoto[]; nextPageToken: string | null }> {
+): Promise<{ folderName: string; files: DownloadPhoto[]; nextPageToken: string | null; totalCount: number }> {
   const safeFolderId = sanitizeEventSegment(folderId);
   const prefix = getEventPrefix(safeFolderId);
   const allObjects = await listFolderObjectsCached(prefix);
+  allObjects.sort((a, b) => {
+    if (!a.lastModified && !b.lastModified) return 0;
+    if (!a.lastModified) return 1;
+    if (!b.lastModified) return -1;
+    return b.lastModified.getTime() - a.lastModified.getTime();
+  });
 
   const offset = Math.max(0, Number.parseInt(pageToken || "0", 10) || 0);
   const pageObjects = allObjects.slice(offset, offset + pageSize);
@@ -148,6 +154,7 @@ export async function listDownloadPhotos(
     folderName: toEventName(safeFolderId),
     files,
     nextPageToken,
+    totalCount: allObjects.length,
   };
 }
 

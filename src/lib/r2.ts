@@ -4,6 +4,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 
 let r2Client: S3Client | null = null;
@@ -177,6 +178,22 @@ export async function deleteMultipleFromR2(keys: string[]): Promise<void> {
       },
     }),
   );
+}
+
+export async function copyR2Object(
+  sourceKey: string,
+  destinationKey: string,
+): Promise<string> {
+  const client = getR2Client();
+  const encodedSource = `${BUCKET}/${encodeURIComponent(sourceKey)}`;
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: BUCKET,
+      CopySource: encodedSource,
+      Key: destinationKey,
+    }),
+  );
+  return r2PublicUrl(destinationKey);
 }
 
 export async function listR2Folder(prefix: string): Promise<string[]> {

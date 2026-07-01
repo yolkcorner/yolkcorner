@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
   let displayName: string;
   let eventId: string;
   let selfieBytes: Uint8Array;
+  let previewOnly = false;
 
   try {
     const formData = await req.formData();
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
     }
 
     const selfie = formData.get("selfie") as File | null;
+    previewOnly = Boolean(formData.get("preview"));
     if (!selfie) {
       return NextResponse.json(
         { error: "selfie file is required" },
@@ -137,11 +139,12 @@ export async function POST(req: NextRequest) {
     name: url.split("/").pop() ?? "photo",
   }));
 
-  // Attempt LINE push. If it fails for any reason (user hasn't added OA,
-  // invalid token, network issue, etc.) we still return 200 with lineSent=false
-  // so the client can fall back to the download UI instead of showing an error.
+  // Attempt LINE push unless caller asked for preview-only.
+  // If it fails for any reason (user hasn't added OA, invalid token, network issue, etc.)
+  // we still return 200 with lineSent=false so the client can fall back to the
+  // download UI instead of showing an error.
   let lineSent = false;
-  if (isLineConfigured() && photoUrls.length > 0) {
+  if (!previewOnly && isLineConfigured() && photoUrls.length > 0) {
     try {
       await pushPhotosToLine(
         process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN!,

@@ -92,6 +92,8 @@ export default async function DownloadDetailPage({
   ).replace(/\/$/, "");
   const folderName = await getFolderName(safeFolderId);
   const resolvedName = folderName || "Event Gallery";
+  const faceRecognitionEnabled =
+    content.faceRecognitionEnabled !== false ? true : false;
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -183,6 +185,7 @@ export default async function DownloadDetailPage({
         mode={mode}
         lineSession={session}
         urlError={error}
+        faceRecognitionEnabled={faceRecognitionEnabled}
       />
     </>
   );
