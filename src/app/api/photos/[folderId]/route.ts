@@ -176,6 +176,7 @@ export async function GET(
       height: null,
       previewUrl: file.previewUrl,
       downloadUrl: file.downloadUrl,
+      lineUrl: resolveR2FileUrl(file.key),
     }));
 
     const response = NextResponse.json({

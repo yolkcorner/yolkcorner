@@ -21,13 +21,19 @@ import Image from "next/image";
 import Layout from "@/components/Layout";
 import { useLang } from "@/lib/i18n";
 
-type Photo = { previewUrl: string; downloadUrl: string; name: string };
+type Photo = {
+  previewUrl: string;
+  downloadUrl: string;
+  name: string;
+  lineUrl?: string;
+};
 type Step =
   | "home"
   | "camera"
   | "searching"
   | "results"
   | "gallery"
+  | "choose"
   | "line-sent";
 
 // ─── CameraView ───────────────────────────────────────────────────────────────
@@ -188,18 +194,30 @@ function Lightbox({
   onClose,
   onNavigate,
   onDownload,
+  isSelected,
+  onToggleSelect,
 }: {
   photos: Photo[];
   idx: number;
   onClose: () => void;
   onNavigate: (idx: number) => void;
   onDownload: (photo: Photo) => void;
+  isSelected?: (photo: Photo) => boolean;
+  onToggleSelect?: (photo: Photo) => void;
 }) {
   const photo = photos[idx];
   if (!photo) return null;
   const hasPrev = idx > 0;
   const hasNext = idx < photos.length - 1;
 
+  // Lock body scroll while lightbox is open
+  React.useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // Keyboard navigation
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -210,10 +228,33 @@ function Lightbox({
     return () => window.removeEventListener("keydown", handler);
   }, [idx, hasPrev, hasNext, onClose, onNavigate]);
 
+  // Touch swipe handling
+  const touchStartX = React.useRef<number | null>(null);
+  const touchStartY = React.useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    // Only treat as horizontal swipe if dx dominates
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0 && hasNext) onNavigate(idx + 1);
+    if (dx > 0 && hasPrev) onNavigate(idx - 1);
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90"
+      className="fixed inset-0 z-10000 flex flex-col items-center justify-center bg-black/90"
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Close */}
       <button
@@ -276,11 +317,26 @@ function Lightbox({
         className="w-full flex items-center justify-between gap-3 bg-black/60 px-6 py-4 backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="truncate text-sm text-white/80">{photo.name}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          {onToggleSelect && (
+            <button
+              type="button"
+              onClick={() => onToggleSelect(photo)}
+              className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+            >
+              {isSelected?.(photo) ? (
+                <CheckCircle2 size={20} className="text-primary" />
+              ) : (
+                <Circle size={20} className="text-white/60" />
+              )}
+            </button>
+          )}
+          <p className="truncate text-sm text-white/80">{photo.name}</p>
+        </div>
         <button
           type="button"
           onClick={() => onDownload(photo)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95"
+          className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95"
         >
           <Download size={14} />
           ดาวน์โหลด
@@ -351,6 +407,43 @@ function DownloadChoiceModal({
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+function LineSentModal({
+  count,
+  onClose,
+}: {
+  count: number;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-10000 flex items-center justify-center bg-black/50 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-3xl bg-white px-6 pb-8 pt-6 text-center shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#06C755]/15">
+          <MessageCircle className="h-10 w-10 text-[#06C755]" />
+        </div>
+        <h3 className="text-xl font-bold text-[#2b1a10]">ส่งรูปสำเร็จแล้ว!</h3>
+        <p className="mt-2 text-sm leading-relaxed text-[#6f5a4b]">
+          {count > 0
+            ? `ส่ง ${count} รูปไปยัง LINE ของคุณแล้ว กรุณาเช็คกล่องข้อความ LINE`
+            : "ส่งรูปไปยัง LINE ของคุณแล้ว"}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:brightness-95"
+        >
+          ปิด
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function DownloadDetailClient({
   folderId,
   folderName,
@@ -370,7 +463,7 @@ export default function DownloadDetailClient({
   const { t } = useLang();
 
   const [step, setStep] = React.useState<Step>(
-    faceRecognitionEnabled ? "home" : "gallery",
+    faceRecognitionEnabled ? "home" : lineMode ? "gallery" : "choose",
   );
   const [errorMsg, setErrorMsg] = React.useState("");
   const [foundPhotos, setFoundPhotos] = React.useState<Photo[]>([]);
@@ -404,12 +497,16 @@ export default function DownloadDetailClient({
   const [lightboxOpen, setLightboxOpen] = React.useState(false);
   const [lightboxPhotos, setLightboxPhotos] = React.useState<Photo[]>([]);
   const [lightboxIdx, setLightboxIdx] = React.useState(0);
-  // Download choice modal
+  // Download choice modal (face-recognition results only)
   const [choiceModal, setChoiceModal] = React.useState<Photo[] | null>(null);
   // Gallery multi-select
   const [gallerySelected, setGallerySelected] = React.useState<Set<string>>(
     new Set(),
   );
+  // Direct download mode (user chose "download directly" on choose screen)
+  const [directDownloadMode, setDirectDownloadMode] = React.useState(lineMode);
+  // LINE sent success modal
+  const [lineSentModalOpen, setLineSentModalOpen] = React.useState(false);
 
   React.useEffect(() => {
     setMounted(true);
@@ -465,6 +562,7 @@ export default function DownloadDetailClient({
             previewUrl: string;
             downloadUrl: string;
             name: string;
+            lineUrl?: string;
           }>)
         : [];
 
@@ -609,7 +707,7 @@ export default function DownloadDetailClient({
   );
 
   const reset = () => {
-    setStep(faceRecognitionEnabled ? "home" : "gallery");
+    setStep(faceRecognitionEnabled ? "home" : lineMode ? "gallery" : "choose");
     setFoundPhotos([]);
     setErrorMsg("");
     setLineSentCount(0);
@@ -617,10 +715,11 @@ export default function DownloadDetailClient({
     setGallerySelected(new Set());
     setDownloadedPhotos(new Set());
     setDownloadProgress(null);
+    setLineSentModalOpen(false);
   };
 
   const handleDownloadPhoto = async (photo: Photo) => {
-    if (!lineMode) {
+    if (!lineMode && !directDownloadMode) {
       setChoiceModal([photo]);
       return;
     }
@@ -655,12 +754,31 @@ export default function DownloadDetailClient({
   const handleDownloadSelected = async () => {
     const toDownload = foundPhotos.filter((p) => selectedPhotos.has(p.name));
     if (!toDownload.length) return;
-    if (!lineMode) {
+    if (!lineMode && !directDownloadMode) {
       setChoiceModal(toDownload);
       return;
     }
     setDownloadingAll(true);
     setDownloadProgress({ current: 0, total: toDownload.length });
+    const ios = isIOSDevice();
+    if (ios && toDownload.length > 1 && typeof navigator.share === "function") {
+      try {
+        const iosFiles: File[] = [];
+        for (let i = 0; i < toDownload.length; i++) {
+          setDownloadProgress({ current: i + 1, total: toDownload.length });
+          const res = await fetch(toDownload[i].downloadUrl, { cache: "no-store" });
+          const blob = await res.blob();
+          iosFiles.push(new File([blob], toDownload[i].name, { type: blob.type || "image/jpeg" }));
+        }
+        if (typeof navigator.canShare === "function" && navigator.canShare({ files: iosFiles })) {
+          await navigator.share({ files: iosFiles });
+          setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
+          setDownloadingAll(false);
+          setDownloadProgress(null);
+          return;
+        }
+      } catch { /* fall through */ }
+    }
     for (let i = 0; i < toDownload.length; i++) {
       setDownloadProgress({ current: i + 1, total: toDownload.length });
       await downloadPhoto(toDownload[i]);
@@ -682,7 +800,7 @@ export default function DownloadDetailClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session: lineSession,
-          photos: toSend.map((p) => p.downloadUrl),
+          photos: toSend.map((p) => p.lineUrl || p.downloadUrl),
         }),
       });
       const data = await res.json();
@@ -691,7 +809,7 @@ export default function DownloadDetailClient({
         return;
       }
       setLineSentCount(data.sent ?? toSend.length);
-      setStep("line-sent");
+      setLineSentModalOpen(true);
     } catch (err) {
       console.error(err);
       setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
@@ -727,11 +845,9 @@ export default function DownloadDetailClient({
   };
 
   const handleGalleryDownloadSelected = () => {
-    const toDownload = galleryPhotos.filter((p) =>
-      gallerySelected.has(p.name),
-    );
+    const toDownload = galleryPhotos.filter((p) => gallerySelected.has(p.name));
     if (!toDownload.length) return;
-    if (!lineMode) {
+    if (!lineMode && !directDownloadMode) {
       setChoiceModal(toDownload);
       return;
     }
@@ -741,11 +857,8 @@ export default function DownloadDetailClient({
       for (let i = 0; i < toDownload.length; i++) {
         setDownloadProgress({ current: i + 1, total: toDownload.length });
         await downloadPhoto(toDownload[i]);
-        setDownloadedPhotos((prev) =>
-          new Set([...prev, toDownload[i].name]),
-        );
-        if (toDownload.length > 1)
-          await new Promise((r) => setTimeout(r, 400));
+        setDownloadedPhotos((prev) => new Set([...prev, toDownload[i].name]));
+        if (toDownload.length > 1) await new Promise((r) => setTimeout(r, 400));
       }
       setDownloadingAll(false);
       setDownloadProgress(null);
@@ -762,7 +875,7 @@ export default function DownloadDetailClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session: lineSession,
-          photos: toSend.map((p) => p.downloadUrl),
+          photos: toSend.map((p) => p.lineUrl || p.downloadUrl),
         }),
       });
       const data = await res.json();
@@ -771,7 +884,7 @@ export default function DownloadDetailClient({
         return;
       }
       setLineSentCount(data.sent ?? toSend.length);
-      setStep("line-sent");
+      setLineSentModalOpen(true);
     } catch (err) {
       console.error(err);
       setErrorMsg("เครือข่ายขัดข้อง กรุณาลองใหม่");
@@ -799,6 +912,25 @@ export default function DownloadDetailClient({
     }
     setDownloadingAll(true);
     setDownloadProgress({ current: 0, total: photos.length });
+    const ios = isIOSDevice();
+    if (ios && photos.length > 1 && typeof navigator.share === "function") {
+      try {
+        const iosFiles: File[] = [];
+        for (let i = 0; i < photos.length; i++) {
+          setDownloadProgress({ current: i + 1, total: photos.length });
+          const res = await fetch(photos[i].downloadUrl, { cache: "no-store" });
+          const blob = await res.blob();
+          iosFiles.push(new File([blob], photos[i].name, { type: blob.type || "image/jpeg" }));
+        }
+        if (typeof navigator.canShare === "function" && navigator.canShare({ files: iosFiles })) {
+          await navigator.share({ files: iosFiles });
+          setDownloadedPhotos((prev) => new Set([...prev, ...photos.map((p) => p.name)]));
+          setDownloadingAll(false);
+          setDownloadProgress(null);
+          return;
+        }
+      } catch { /* fall through */ }
+    }
     for (let i = 0; i < photos.length; i++) {
       setDownloadProgress({ current: i + 1, total: photos.length });
       await downloadPhoto(photos[i]);
@@ -891,6 +1023,66 @@ export default function DownloadDetailClient({
                     {lineMode
                       ? (dt?.noLineCaptureBtn ?? "ถ่ายเซลฟี่")
                       : (dt?.noLineBtn ?? "ถ่ายเซลฟี่ดูรูปเอง")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── CHOOSE ───────────────────────────────────────── */}
+      {step === "choose" && (
+        <section className="flex items-start justify-center px-4 pb-10 pt-8">
+          <div className="w-full max-w-sm">
+            <div className="overflow-hidden rounded-4xl bg-white shadow-[0_8px_40px_rgba(120,58,12,0.12),0_1.5px_4px_rgba(120,58,12,0.08)]">
+              {/* Gradient header */}
+              <div className="relative flex items-center justify-center overflow-hidden bg-linear-to-br from-[#fff6ec] via-[#ffe8cc] to-[#ffd9a8] py-14">
+                <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/[0.07]" />
+                <div className="absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-primary/5" />
+                <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-white shadow-[0_12px_40px_rgba(242,154,45,0.25)]">
+                  <Download
+                    className="h-16 w-16 text-primary"
+                    strokeWidth={1.4}
+                  />
+                </div>
+              </div>
+              {/* Content */}
+              <div className="px-7 pb-9 pt-7 text-center">
+                {folderName && (
+                  <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-primary/70">
+                    {folderName}
+                  </p>
+                )}
+                <h2 className="text-[1.4rem] font-bold leading-snug text-[#2b1a10]">
+                  ต้องการรับรูปอย่างไร?
+                </h2>
+                <p className="mx-auto mt-3 max-w-65 text-[13px] leading-relaxed text-[#8a7263]">
+                  เลือกวิธีรับรูปก่อนเลือกภาพ
+                </p>
+                {errorMsg && (
+                  <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">
+                    {errorMsg}
+                  </p>
+                )}
+                <div className="mt-8 space-y-3">
+                  <a
+                    href={`/api/line/auth?eventId=${encodeURIComponent(folderId)}`}
+                    className="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#06C755] px-6 py-4 text-[15px] font-bold text-white shadow-[0_6px_24px_rgba(6,199,85,0.3)] transition-all hover:brightness-[1.03] active:scale-[0.98]"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    รับภาพผ่าน LINE
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDirectDownloadMode(true);
+                      setStep("gallery");
+                    }}
+                    className="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-primary px-6 py-4 text-[15px] font-bold text-white shadow-[0_6px_24px_rgba(242,154,45,0.3)] transition-all hover:brightness-[1.03] active:scale-[0.98]"
+                  >
+                    <Download className="h-5 w-5" />
+                    ดาวน์โหลดเอง
                   </button>
                 </div>
               </div>
@@ -1002,7 +1194,8 @@ export default function DownloadDetailClient({
                         >
                           <Download size={13} />
                           {downloadingId === photo.name
-                            ? (t?.downloadDetail?.downloading ?? "Downloading...")
+                            ? (t?.downloadDetail?.downloading ??
+                              "Downloading...")
                             : (t?.common?.download ?? "Download")}
                         </button>
                       </div>
@@ -1197,20 +1390,18 @@ export default function DownloadDetailClient({
         createPortal(
           <div className="fixed bottom-0 left-0 right-0 z-9999 px-4 pb-4">
             <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white/95 px-4 py-3 shadow-[0_8px_32px_rgba(120,58,12,0.18)] backdrop-blur">
-              <button
-                type="button"
-                onClick={toggleSelectAll}
-                className="inline-flex items-center gap-2 text-sm font-medium text-[#4d3a2e] transition hover:text-primary"
-              >
-                {selectedPhotos.size === foundPhotos.length ? (
-                  <CheckCircle2 size={18} className="text-primary" />
-                ) : (
-                  <Circle size={18} className="text-[#aaa]" />
-                )}
-                {selectedPhotos.size === foundPhotos.length
-                  ? "ยกเลิกทั้งหมด"
-                  : `เลือกทั้งหมด (${foundPhotos.length})`}
-              </button>
+              {selectedPhotos.size > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhotos(new Set())}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#4d3a2e] transition hover:text-red-500"
+                >
+                  <X size={16} className="text-red-400" />
+                  ล้างทั้งหมด ({selectedPhotos.size})
+                </button>
+              ) : (
+                <span className="text-sm text-[#9a8677]">แตะรูปเพื่อเลือก</span>
+              )}
               {lineMode ? (
                 <div className="flex gap-2">
                   <button
@@ -1266,22 +1457,18 @@ export default function DownloadDetailClient({
         createPortal(
           <div className="fixed bottom-0 left-0 right-0 z-9999 px-4 pb-4">
             <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-2xl border border-[#e3d2bf] bg-white/95 px-4 py-3 shadow-[0_8px_32px_rgba(120,58,12,0.18)] backdrop-blur">
-              <button
-                type="button"
-                onClick={toggleGallerySelectAll}
-                className="inline-flex items-center gap-2 text-sm font-medium text-[#4d3a2e] transition hover:text-primary"
-              >
-                {gallerySelected.size === galleryPhotos.length &&
-                galleryPhotos.length > 0 ? (
-                  <CheckCircle2 size={18} className="text-primary" />
-                ) : (
-                  <Circle size={18} className="text-[#aaa]" />
-                )}
-                {gallerySelected.size === galleryPhotos.length &&
-                galleryPhotos.length > 0
-                  ? "ยกเลิกทั้งหมด"
-                  : `เลือกทั้งหมด (${galleryPhotos.length})`}
-              </button>
+              {gallerySelected.size > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setGallerySelected(new Set())}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#4d3a2e] transition hover:text-red-500"
+                >
+                  <X size={16} className="text-red-400" />
+                  ล้างทั้งหมด ({gallerySelected.size})
+                </button>
+              ) : (
+                <span className="text-sm text-[#9a8677]">แตะรูปเพื่อเลือก</span>
+              )}
               {lineMode ? (
                 <div className="flex gap-2">
                   <button
@@ -1341,6 +1528,18 @@ export default function DownloadDetailClient({
               setLightboxOpen(false);
               void handleDownloadPhoto(photo);
             }}
+            isSelected={(photo) =>
+              step === "gallery"
+                ? gallerySelected.has(photo.name)
+                : selectedPhotos.has(photo.name)
+            }
+            onToggleSelect={(photo) => {
+              if (step === "gallery") {
+                toggleGallerySelect(photo.name);
+              } else {
+                toggleSelect(photo.name);
+              }
+            }}
           />,
           document.body,
         )}
@@ -1353,6 +1552,16 @@ export default function DownloadDetailClient({
             folderId={folderId}
             onNoLine={handleChoiceNoLine}
             onClose={() => setChoiceModal(null)}
+          />,
+          document.body,
+        )}
+      {/* LINE sent success modal */}
+      {mounted &&
+        lineSentModalOpen &&
+        createPortal(
+          <LineSentModal
+            count={lineSentCount}
+            onClose={() => setLineSentModalOpen(false)}
           />,
           document.body,
         )}
