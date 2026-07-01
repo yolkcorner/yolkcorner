@@ -512,6 +512,42 @@ export default function DownloadDetailClient({
     setMounted(true);
   }, []);
 
+  // Persist "downloaded" badges across refreshes, expire after 1 hour
+  const DOWNLOAD_STORAGE_KEY = `yolk_dl_${folderId}`;
+  const ONE_HOUR_MS = 3_600_000;
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DOWNLOAD_STORAGE_KEY);
+      if (!raw) return;
+      const data: Record<string, number> = JSON.parse(raw);
+      const now = Date.now();
+      const valid: Record<string, number> = {};
+      for (const [name, ts] of Object.entries(data)) {
+        if (now - ts < ONE_HOUR_MS) valid[name] = ts;
+      }
+      const names = Object.keys(valid);
+      if (names.length > 0) setDownloadedPhotos(new Set(names));
+      localStorage.setItem(DOWNLOAD_STORAGE_KEY, JSON.stringify(valid));
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    if (downloadedPhotos.size === 0) return;
+    try {
+      const raw = localStorage.getItem(DOWNLOAD_STORAGE_KEY);
+      const existing: Record<string, number> = raw ? JSON.parse(raw) : {};
+      const now = Date.now();
+      let changed = false;
+      for (const name of downloadedPhotos) {
+        if (!(name in existing)) { existing[name] = now; changed = true; }
+      }
+      if (changed) localStorage.setItem(DOWNLOAD_STORAGE_KEY, JSON.stringify(existing));
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [downloadedPhotos]);
+
   // Show URL-level errors from LINE OAuth callback (e.g. user denied, auth failed)
   React.useEffect(() => {
     if (!urlError) return;
@@ -773,6 +809,7 @@ export default function DownloadDetailClient({
         if (typeof navigator.canShare === "function" && navigator.canShare({ files: iosFiles })) {
           await navigator.share({ files: iosFiles });
           setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
+          setSelectedPhotos(new Set());
           setDownloadingAll(false);
           setDownloadProgress(null);
           return;
@@ -786,6 +823,7 @@ export default function DownloadDetailClient({
       // small delay so browser doesn't block multiple simultaneous downloads
       await new Promise((r) => setTimeout(r, 400));
     }
+    setSelectedPhotos(new Set());
     setDownloadingAll(false);
     setDownloadProgress(null);
   };
@@ -809,6 +847,7 @@ export default function DownloadDetailClient({
         return;
       }
       setLineSentCount(data.sent ?? toSend.length);
+      setSelectedPhotos(new Set());
       setLineSentModalOpen(true);
     } catch (err) {
       console.error(err);
@@ -860,6 +899,7 @@ export default function DownloadDetailClient({
         setDownloadedPhotos((prev) => new Set([...prev, toDownload[i].name]));
         if (toDownload.length > 1) await new Promise((r) => setTimeout(r, 400));
       }
+      setGallerySelected(new Set());
       setDownloadingAll(false);
       setDownloadProgress(null);
     })();
@@ -884,6 +924,7 @@ export default function DownloadDetailClient({
         return;
       }
       setLineSentCount(data.sent ?? toSend.length);
+      setGallerySelected(new Set());
       setLineSentModalOpen(true);
     } catch (err) {
       console.error(err);
@@ -925,6 +966,8 @@ export default function DownloadDetailClient({
         if (typeof navigator.canShare === "function" && navigator.canShare({ files: iosFiles })) {
           await navigator.share({ files: iosFiles });
           setDownloadedPhotos((prev) => new Set([...prev, ...photos.map((p) => p.name)]));
+          setSelectedPhotos(new Set());
+          setGallerySelected(new Set());
           setDownloadingAll(false);
           setDownloadProgress(null);
           return;
@@ -937,6 +980,8 @@ export default function DownloadDetailClient({
       setDownloadedPhotos((prev) => new Set([...prev, photos[i].name]));
       await new Promise((r) => setTimeout(r, 400));
     }
+    setSelectedPhotos(new Set());
+    setGallerySelected(new Set());
     setDownloadingAll(false);
     setDownloadProgress(null);
   };
@@ -1179,25 +1224,13 @@ export default function DownloadDetailClient({
                           </div>
                         )}
                       </div>
-                      <div className="p-3">
+                      <div className="px-2 pb-2 pt-1">
                         <p
                           className="truncate text-xs text-[#6a5445]"
                           title={photo.name}
                         >
                           {photo.name}
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPhoto(photo)}
-                          disabled={downloadingId === photo.name}
-                          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
-                        >
-                          <Download size={13} />
-                          {downloadingId === photo.name
-                            ? (t?.downloadDetail?.downloading ??
-                              "Downloading...")
-                            : (t?.common?.download ?? "Download")}
-                        </button>
                       </div>
                     </div>
                   );
@@ -1403,34 +1436,19 @@ export default function DownloadDetailClient({
                 <span className="text-sm text-[#9a8677]">แตะรูปเพื่อเลือก</span>
               )}
               {lineMode ? (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSendToLineSelected}
-                    disabled={selectedPhotos.size === 0 || downloadingAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
-                  >
-                    <MessageCircle size={14} />
-                    {downloadingAll && downloadProgress
-                      ? `กำลังส่ง (${downloadProgress.current}/${downloadProgress.total})`
-                      : selectedPhotos.size > 0
-                        ? `ส่งไปยัง LINE (${selectedPhotos.size})`
-                        : "เลือกรูปก่อน"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadSelected}
-                    disabled={selectedPhotos.size === 0 || downloadingAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
-                  >
-                    <Download size={14} />
-                    {downloadingAll && downloadProgress
-                      ? `กำลังดาวน์โหลด (${downloadProgress.current}/${downloadProgress.total})`
-                      : selectedPhotos.size > 0
-                        ? `ดาวน์โหลด (${selectedPhotos.size})`
-                        : "เลือกรูปก่อน"}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleSendToLineSelected}
+                  disabled={selectedPhotos.size === 0 || downloadingAll}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
+                >
+                  <MessageCircle size={14} />
+                  {downloadingAll && downloadProgress
+                    ? `กำลังส่ง (${downloadProgress.current}/${downloadProgress.total})`
+                    : selectedPhotos.size > 0
+                      ? `ส่งไปยัง LINE (${selectedPhotos.size})`
+                      : "เลือกรูปก่อน"}
+                </button>
               ) : (
                 <button
                   type="button"
@@ -1470,32 +1488,19 @@ export default function DownloadDetailClient({
                 <span className="text-sm text-[#9a8677]">แตะรูปเพื่อเลือก</span>
               )}
               {lineMode ? (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleGallerySendToLine}
-                    disabled={gallerySelected.size === 0 || downloadingAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
-                  >
-                    <MessageCircle size={14} />
-                    {gallerySelected.size > 0
+                <button
+                  type="button"
+                  onClick={handleGallerySendToLine}
+                  disabled={gallerySelected.size === 0 || downloadingAll}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
+                >
+                  <MessageCircle size={14} />
+                  {downloadingAll && downloadProgress
+                    ? `กำลังส่ง (${downloadProgress.current}/${downloadProgress.total})`
+                    : gallerySelected.size > 0
                       ? `ส่งไปยัง LINE (${gallerySelected.size})`
                       : "เลือกรูปก่อน"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleGalleryDownloadSelected}
-                    disabled={gallerySelected.size === 0 || downloadingAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-40"
-                  >
-                    <Download size={14} />
-                    {downloadingAll && downloadProgress
-                      ? `กำลังดาวน์โหลด (${downloadProgress.current}/${downloadProgress.total})`
-                      : gallerySelected.size > 0
-                        ? `ดาวน์โหลด (${gallerySelected.size})`
-                        : ""}
-                  </button>
-                </div>
+                </button>
               ) : (
                 <button
                   type="button"
