@@ -82,23 +82,31 @@ export async function pushPhotosToLine(
   displayName?: string,
 ): Promise<void> {
   if (!photoUrls.length) return;
-
-  const greeting = displayName
-    ? `สวัสดี ${displayName}! 🎉 เจอรูปของคุณ ${photoUrls.length} รูปในงาน มาแล้ว!`
-    : `🎉 เจอรูปของคุณ ${photoUrls.length} รูปในงาน!`;
-
-  await pushLineMessages(channelAccessToken, userId, [
-    { type: "text", text: greeting },
-  ]);
-
-  // Batch in groups of 5 (LINE max per push call)
+  // Batch in groups of 5 (LINE max per push call). To ensure LINE shows a
+  // notification for each push, send a short text message immediately
+  // before sending each batch of images. Many LINE clients aggregate
+  // notifications when only images are pushed, so a preceding text forces
+  // a visible notification for that batch.
   for (let i = 0; i < photoUrls.length; i += 5) {
-    const batch = photoUrls.slice(i, i + 5).map((url) => ({
+    const batch = photoUrls.slice(i, i + 5);
+
+    const text = displayName
+      ? `สวัสดี ${displayName} — มีรูปใหม่ ${batch.length} รูป มาในงานนี้!`
+      : `มีรูปใหม่ ${batch.length} รูป มาในงานนี้!`;
+
+    // send a short text first to trigger a notification
+    await pushLineMessages(channelAccessToken, userId, [{ type: "text", text }]);
+
+    // then send the images in this batch
+    const imageMessages = batch.map((url) => ({
       type: "image",
       originalContentUrl: url,
       previewImageUrl: url,
     }));
-    await pushLineMessages(channelAccessToken, userId, batch);
+    await pushLineMessages(channelAccessToken, userId, imageMessages);
+
+    // slight delay between batches to reduce chance of aggregation/throttling
+    await new Promise((r) => setTimeout(r, 300));
   }
 }
 
