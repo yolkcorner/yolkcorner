@@ -187,6 +187,50 @@ async function downloadPhoto(photo: Photo) {
   link.remove();
 }
 
+async function trySharePhotosAsFiles(photos: Photo[]): Promise<boolean> {
+  if (typeof navigator === "undefined" || !isIOSDevice()) return false;
+  try {
+    const files: File[] = [];
+    for (const photo of photos) {
+      const res = await fetch(photo.downloadUrl, { cache: "no-store" });
+      const blob = await res.blob();
+      files.push(
+        new File([blob], photo.name, { type: blob.type || "image/jpeg" }),
+      );
+    }
+    if (
+      typeof navigator.canShare === "function" &&
+      navigator.canShare({ files })
+    ) {
+      await navigator.share({ files, title: "Photos" });
+      return true;
+    }
+  } catch (error) {
+    console.warn("share multiple photos failed:", error);
+  }
+  return false;
+}
+
+async function downloadPhotosAsZip(photos: Photo[], folderName?: string) {
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  for (let i = 0; i < photos.length; i++) {
+    const res = await fetch(photos[i].downloadUrl, { cache: "no-store" });
+    const blob = await res.blob();
+    zip.file(photos[i].name, blob);
+  }
+  const content = await zip.generateAsync({ type: "blob" });
+  const fileName = `${(folderName || "photos").replace(/\s+/g, "_")}.zip`;
+  const url = URL.createObjectURL(content);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
 function Lightbox({
   photos,
@@ -808,66 +852,23 @@ export default function DownloadDetailClient({
     setDownloadProgress({ current: 0, total: toDownload.length });
     const ios = isIOSDevice();
     if (ios && toDownload.length > 1) {
-      // On iOS the Web Share API may not save multiple images reliably to
-      // Photos. Fallback: create a ZIP of selected images and offer a single
-      // download/share so users can extract on-device.
       try {
-        const JSZip = (await import("jszip")).default;
-        const zip = new JSZip();
-        for (let i = 0; i < toDownload.length; i++) {
-          setDownloadProgress({ current: i + 1, total: toDownload.length });
-          const res = await fetch(toDownload[i].downloadUrl, { cache: "no-store" });
-          const blob = await res.blob();
-          zip.file(toDownload[i].name, blob);
+        const shared = await trySharePhotosAsFiles(toDownload);
+        if (shared) {
+          setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
+          setSelectedPhotos(new Set());
+          setDownloadingAll(false);
+          setDownloadProgress(null);
+          return;
         }
-        const content = await zip.generateAsync({ type: "blob" });
-        const fileName = `${(folderName || "photos").replace(/\s+/g, "_")}.zip`;
-
-        // Try sharing the ZIP if the device supports it, otherwise force download
-        try {
-          if (typeof navigator.canShare === "function") {
-            const shareFile = new File([content], fileName, { type: "application/zip" });
-            if (navigator.canShare({ files: [shareFile] })) {
-              await navigator.share({ files: [shareFile], title: fileName });
-            } else {
-              const url = URL.createObjectURL(content);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = fileName;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-              URL.revokeObjectURL(url);
-            }
-          } else {
-            const url = URL.createObjectURL(content);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-          }
-        } catch (shareErr) {
-          const url = URL.createObjectURL(content);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        }
-
+        await downloadPhotosAsZip(toDownload, folderName);
         setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
         setSelectedPhotos(new Set());
         setDownloadingAll(false);
         setDownloadProgress(null);
         return;
       } catch (err) {
-        // fallback to per-file download below
-        console.warn("ZIP fallback failed, falling back to per-file downloads:", err);
+        console.warn("iOS multi-download fallback failed, falling back to per-file downloads:", err);
       }
     }
     for (let i = 0; i < toDownload.length; i++) {
@@ -950,6 +951,27 @@ export default function DownloadDetailClient({
     void (async () => {
       setDownloadingAll(true);
       setDownloadProgress({ current: 0, total: toDownload.length });
+      const ios = isIOSDevice();
+      if (ios && toDownload.length > 1) {
+        try {
+          const shared = await trySharePhotosAsFiles(toDownload);
+          if (shared) {
+            setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
+            setGallerySelected(new Set());
+            setDownloadingAll(false);
+            setDownloadProgress(null);
+            return;
+          }
+          await downloadPhotosAsZip(toDownload, folderName);
+          setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
+          setGallerySelected(new Set());
+          setDownloadingAll(false);
+          setDownloadProgress(null);
+          return;
+        } catch (err) {
+          console.warn("iOS gallery multi-download fallback failed, falling back to per-file downloads:", err);
+        }
+      }
       for (let i = 0; i < toDownload.length; i++) {
         setDownloadProgress({ current: i + 1, total: toDownload.length });
         await downloadPhoto(toDownload[i]);
