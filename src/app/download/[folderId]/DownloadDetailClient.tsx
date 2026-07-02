@@ -530,6 +530,11 @@ export default function DownloadDetailClient({
     current: number;
     total: number;
   } | null>(null);
+  const [downloadStatus, setDownloadStatus] = React.useState<string | null>(null);
+  const [downloadStatusType, setDownloadStatusType] = React.useState<
+    "info" | "success" | null
+  >(null);
+  const downloadStatusTimerRef = React.useRef<number | null>(null);
   const [downloadedPhotos, setDownloadedPhotos] = React.useState<Set<string>>(
     new Set(),
   );
@@ -601,6 +606,40 @@ export default function DownloadDetailClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [downloadedPhotos]);
+
+  const showDownloadStatus = React.useCallback(
+    (message: string, type: "info" | "success" = "info") => {
+      if (downloadStatusTimerRef.current) {
+        window.clearTimeout(downloadStatusTimerRef.current);
+        downloadStatusTimerRef.current = null;
+      }
+      setDownloadStatus(message);
+      setDownloadStatusType(type);
+      downloadStatusTimerRef.current = window.setTimeout(() => {
+        setDownloadStatus(null);
+        setDownloadStatusType(null);
+        downloadStatusTimerRef.current = null;
+      }, 3500);
+    },
+    [],
+  );
+
+  const clearDownloadStatus = React.useCallback(() => {
+    if (downloadStatusTimerRef.current) {
+      window.clearTimeout(downloadStatusTimerRef.current);
+      downloadStatusTimerRef.current = null;
+    }
+    setDownloadStatus(null);
+    setDownloadStatusType(null);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (downloadStatusTimerRef.current) {
+        window.clearTimeout(downloadStatusTimerRef.current);
+      }
+    };
+  }, []);
 
   // Show URL-level errors from LINE OAuth callback (e.g. user denied, auth failed)
   React.useEffect(() => {
@@ -806,6 +845,7 @@ export default function DownloadDetailClient({
     setDownloadedPhotos(new Set());
     setDownloadProgress(null);
     setLineSentModalOpen(false);
+    clearDownloadStatus();
   };
 
   const handleDownloadPhoto = async (photo: Photo) => {
@@ -814,11 +854,13 @@ export default function DownloadDetailClient({
       return;
     }
     setDownloadingId(photo.name);
+    showDownloadStatus("กำลังดาวน์โหลด...");
     try {
       await downloadPhoto(photo);
       setDownloadedPhotos((prev) => new Set([...prev, photo.name]));
+      showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
     } catch {
-      /* silent */
+      showDownloadStatus("ไม่สามารถดาวน์โหลดได้ กรุณาลองใหม่");
     } finally {
       setDownloadingId(null);
     }
@@ -850,6 +892,7 @@ export default function DownloadDetailClient({
     }
     setDownloadingAll(true);
     setDownloadProgress({ current: 0, total: toDownload.length });
+    showDownloadStatus("กำลังดาวน์โหลด...");
     const ios = isIOSDevice();
     if (ios && toDownload.length > 1) {
       try {
@@ -859,6 +902,7 @@ export default function DownloadDetailClient({
           setSelectedPhotos(new Set());
           setDownloadingAll(false);
           setDownloadProgress(null);
+          showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
           return;
         }
         await downloadPhotosAsZip(toDownload, folderName);
@@ -866,6 +910,7 @@ export default function DownloadDetailClient({
         setSelectedPhotos(new Set());
         setDownloadingAll(false);
         setDownloadProgress(null);
+        showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
         return;
       } catch (err) {
         console.warn("iOS multi-download fallback failed, falling back to per-file downloads:", err);
@@ -881,6 +926,7 @@ export default function DownloadDetailClient({
     setSelectedPhotos(new Set());
     setDownloadingAll(false);
     setDownloadProgress(null);
+    showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
   };
 
   const handleSendToLineSelected = async () => {
@@ -951,6 +997,7 @@ export default function DownloadDetailClient({
     void (async () => {
       setDownloadingAll(true);
       setDownloadProgress({ current: 0, total: toDownload.length });
+      showDownloadStatus("กำลังดาวน์โหลด...");
       const ios = isIOSDevice();
       if (ios && toDownload.length > 1) {
         try {
@@ -960,6 +1007,7 @@ export default function DownloadDetailClient({
             setGallerySelected(new Set());
             setDownloadingAll(false);
             setDownloadProgress(null);
+            showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
             return;
           }
           await downloadPhotosAsZip(toDownload, folderName);
@@ -967,6 +1015,7 @@ export default function DownloadDetailClient({
           setGallerySelected(new Set());
           setDownloadingAll(false);
           setDownloadProgress(null);
+          showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
           return;
         } catch (err) {
           console.warn("iOS gallery multi-download fallback failed, falling back to per-file downloads:", err);
@@ -1089,6 +1138,7 @@ export default function DownloadDetailClient({
         setGallerySelected(new Set());
         setDownloadingAll(false);
         setDownloadProgress(null);
+        showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
         return;
       } catch (err) {
         console.warn("ZIP fallback failed, falling back to per-file downloads:", err);
@@ -1104,12 +1154,23 @@ export default function DownloadDetailClient({
     setGallerySelected(new Set());
     setDownloadingAll(false);
     setDownloadProgress(null);
+    showDownloadStatus("ดาวน์โหลดเสร็จสิ้นแล้ว", "success");
   };
 
   const dt = t?.downloadDetail;
 
   return (
     <Layout>
+      {downloadStatus && (
+        <div className="fixed left-1/2 top-24 z-50 w-[min(95vw,420px)] -translate-x-1/2 rounded-3xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-700 shadow-[0_14px_60px_rgba(33,18,0,0.14)] backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            {downloadStatusType === "success" && (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            )}
+            <span>{downloadStatus}</span>
+          </div>
+        </div>
+      )}
       {/* Back link */}
       <div className="container mx-auto px-4 pt-14">
         <Link
@@ -1285,11 +1346,11 @@ export default function DownloadDetailClient({
               </button>
             </div>
           ) : galleryLoading ? (
-            <div className="flex min-h-[240px] items-center justify-center text-sm text-[#6f5a4b]">
+            <div className="flex min-h-60 items-center justify-center text-sm text-[#6f5a4b]">
               {t?.downloadDetail?.loadingPhotos ?? "Loading photos..."}
             </div>
           ) : galleryPhotos.length === 0 ? (
-            <div className="flex min-h-[240px] items-center justify-center text-sm text-[#6f5a4b]">
+            <div className="flex min-h-60 items-center justify-center text-sm text-[#6f5a4b]">
               {t?.downloadDetail?.noPhotos ??
                 "No photos found in this gallery."}
             </div>
@@ -1322,7 +1383,7 @@ export default function DownloadDetailClient({
                         />
                         {/* Checkbox overlay */}
                         <div
-                          className="absolute right-2 top-2 z-10"
+                          className="absolute right-2 top-2 z-10 p-1"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleGallerySelect(photo.name);
@@ -1330,12 +1391,12 @@ export default function DownloadDetailClient({
                         >
                           {selected ? (
                             <CheckCircle2
-                              size={22}
+                              size={24}
                               className="rounded-full bg-white text-primary drop-shadow"
                             />
                           ) : (
                             <Circle
-                              size={22}
+                              size={24}
                               className="rounded-full bg-white/80 text-[#aaa] drop-shadow"
                             />
                           )}
@@ -1465,15 +1526,15 @@ export default function DownloadDetailClient({
                           <ZoomIn size={14} />
                         </button>
                         {/* Circle checkbox overlay */}
-                        <div className="absolute right-2 top-2">
+                        <div className="absolute right-2 top-2 p-1">
                           {selected ? (
                             <CheckCircle2
-                              size={22}
+                              size={24}
                               className="bg-white rounded-full text-primary drop-shadow"
                             />
                           ) : (
                             <Circle
-                              size={22}
+                              size={24}
                               className="bg-white/80 rounded-full text-[#aaa] drop-shadow"
                             />
                           )}
