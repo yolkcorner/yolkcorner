@@ -807,36 +807,67 @@ export default function DownloadDetailClient({
     setDownloadingAll(true);
     setDownloadProgress({ current: 0, total: toDownload.length });
     const ios = isIOSDevice();
-    if (ios && toDownload.length > 1 && typeof navigator.share === "function") {
+    if (ios && toDownload.length > 1) {
+      // On iOS the Web Share API may not save multiple images reliably to
+      // Photos. Fallback: create a ZIP of selected images and offer a single
+      // download/share so users can extract on-device.
       try {
-        const iosFiles: File[] = [];
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
         for (let i = 0; i < toDownload.length; i++) {
           setDownloadProgress({ current: i + 1, total: toDownload.length });
-          const res = await fetch(toDownload[i].downloadUrl, {
-            cache: "no-store",
-          });
+          const res = await fetch(toDownload[i].downloadUrl, { cache: "no-store" });
           const blob = await res.blob();
-          iosFiles.push(
-            new File([blob], toDownload[i].name, {
-              type: blob.type || "image/jpeg",
-            }),
-          );
+          zip.file(toDownload[i].name, blob);
         }
-        if (
-          typeof navigator.canShare === "function" &&
-          navigator.canShare({ files: iosFiles })
-        ) {
-          await navigator.share({ files: iosFiles });
-          setDownloadedPhotos(
-            (prev) => new Set([...prev, ...toDownload.map((p) => p.name)]),
-          );
-          setSelectedPhotos(new Set());
-          setDownloadingAll(false);
-          setDownloadProgress(null);
-          return;
+        const content = await zip.generateAsync({ type: "blob" });
+        const fileName = `${(folderName || "photos").replace(/\s+/g, "_")}.zip`;
+
+        // Try sharing the ZIP if the device supports it, otherwise force download
+        try {
+          if (typeof navigator.canShare === "function") {
+            const shareFile = new File([content], fileName, { type: "application/zip" });
+            if (navigator.canShare({ files: [shareFile] })) {
+              await navigator.share({ files: [shareFile], title: fileName });
+            } else {
+              const url = URL.createObjectURL(content);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+            }
+          } else {
+            const url = URL.createObjectURL(content);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          }
+        } catch (shareErr) {
+          const url = URL.createObjectURL(content);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
         }
-      } catch {
-        /* fall through */
+
+        setDownloadedPhotos((prev) => new Set([...prev, ...toDownload.map((p) => p.name)]));
+        setSelectedPhotos(new Set());
+        setDownloadingAll(false);
+        setDownloadProgress(null);
+        return;
+      } catch (err) {
+        // fallback to per-file download below
+        console.warn("ZIP fallback failed, falling back to per-file downloads:", err);
       }
     }
     for (let i = 0; i < toDownload.length; i++) {
@@ -870,6 +901,9 @@ export default function DownloadDetailClient({
         return;
       }
       setLineSentCount(data.sent ?? toSend.length);
+      setDownloadedPhotos(
+        (prev) => new Set([...prev, ...toSend.map((p) => p.name)]),
+      );
       setSelectedPhotos(new Set());
       setLineSentModalOpen(true);
     } catch (err) {
@@ -947,6 +981,9 @@ export default function DownloadDetailClient({
         return;
       }
       setLineSentCount(data.sent ?? toSend.length);
+      setDownloadedPhotos(
+        (prev) => new Set([...prev, ...toSend.map((p) => p.name)]),
+      );
       setGallerySelected(new Set());
       setLineSentModalOpen(true);
     } catch (err) {
@@ -977,35 +1014,62 @@ export default function DownloadDetailClient({
     setDownloadingAll(true);
     setDownloadProgress({ current: 0, total: photos.length });
     const ios = isIOSDevice();
-    if (ios && photos.length > 1 && typeof navigator.share === "function") {
+    if (ios && photos.length > 1) {
       try {
-        const iosFiles: File[] = [];
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
         for (let i = 0; i < photos.length; i++) {
           setDownloadProgress({ current: i + 1, total: photos.length });
           const res = await fetch(photos[i].downloadUrl, { cache: "no-store" });
           const blob = await res.blob();
-          iosFiles.push(
-            new File([blob], photos[i].name, {
-              type: blob.type || "image/jpeg",
-            }),
-          );
+          zip.file(photos[i].name, blob);
         }
-        if (
-          typeof navigator.canShare === "function" &&
-          navigator.canShare({ files: iosFiles })
-        ) {
-          await navigator.share({ files: iosFiles });
-          setDownloadedPhotos(
-            (prev) => new Set([...prev, ...photos.map((p) => p.name)]),
-          );
-          setSelectedPhotos(new Set());
-          setGallerySelected(new Set());
-          setDownloadingAll(false);
-          setDownloadProgress(null);
-          return;
+        const content = await zip.generateAsync({ type: "blob" });
+        const fileName = `${(folderName || "photos").replace(/\s+/g, "_")}.zip`;
+        try {
+          if (typeof navigator.canShare === "function") {
+            const shareFile = new File([content], fileName, { type: "application/zip" });
+            if (navigator.canShare({ files: [shareFile] })) {
+              await navigator.share({ files: [shareFile], title: fileName });
+            } else {
+              const url = URL.createObjectURL(content);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+            }
+          } else {
+            const url = URL.createObjectURL(content);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          }
+        } catch (shareErr) {
+          const url = URL.createObjectURL(content);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
         }
-      } catch {
-        /* fall through */
+
+        setDownloadedPhotos((prev) => new Set([...prev, ...photos.map((p) => p.name)]));
+        setSelectedPhotos(new Set());
+        setGallerySelected(new Set());
+        setDownloadingAll(false);
+        setDownloadProgress(null);
+        return;
+      } catch (err) {
+        console.warn("ZIP fallback failed, falling back to per-file downloads:", err);
       }
     }
     for (let i = 0; i < photos.length; i++) {
@@ -1175,13 +1239,16 @@ export default function DownloadDetailClient({
         <section className="container mx-auto px-4 py-10">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-[#2b1a10]">
-              {folderName ? `${folderName} — ` : ""}
-              {t?.downloadDetail?.galleryTitle ?? "Browse all photos"}
+              {folderName
+                ? folderName
+                : t?.downloadDetail?.galleryTitle ?? "Browse all photos"}
             </h2>
-            <p className="mt-2 text-sm text-[#6f5a4b]">
-              {t?.downloadDetail?.galleryDescription ??
-                "Face recognition is disabled. Browse all photos and download as needed."}
-            </p>
+            {!lineMode && !directDownloadMode && (
+              <p className="mt-2 text-sm text-[#6f5a4b]">
+                {t?.downloadDetail?.galleryDescription ??
+                  "Face recognition is disabled. Browse all photos and download as needed."}
+              </p>
+            )}
           </div>
 
           {galleryError ? (
